@@ -46,7 +46,11 @@ export async function DELETE() {
 
     const deletions = [];
     snapshot.forEach((docSnap) => {
-      deletions.push(deleteDoc(docSnap.ref));
+      const ticketData = docSnap.data();
+      // Only delete tickets with status "waiting", preserve "ready" (served) tickets
+      if (ticketData.status === "waiting") {
+        deletions.push(deleteDoc(docSnap.ref));
+      }
     });
 
     await Promise.all(deletions);

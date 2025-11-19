@@ -19,29 +19,13 @@ import { Badge } from "@/components/ui/badge";
 export default function ServedPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const notify = async () => {
-      if ("Notification" in window) {
-        try {
-          let permission = Notification.permission;
-          if (permission !== "granted") {
-            permission = await Notification.requestPermission();
-          }
-          if (permission === "granted") {
-            new Notification("Your chai is ready!", {
-              body: "Pick it up at the counter while it’s piping hot.",
-              icon: "/thechaicouple.jpg",
-            });
-          }
-        } catch {
-          // ignore
-        }
-      }
-      if ("vibrate" in navigator) {
-        navigator.vibrate(200);
-      }
-    };
-
-    notify();
+    
+    // Play sound effect once when page loads
+    const audio = new Audio("/Order-up-bell-sound-effect.mp3");
+    audio.play().catch((err) => {
+      // Ignore autoplay errors (browser may block autoplay)
+      console.log("Audio play failed:", err);
+    });
   }, []);
 
   return (

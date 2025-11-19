@@ -341,6 +341,17 @@ export default function QueuePage() {
                     <span>Total</span>
                     <span>{currency.format(total)}</span>
                   </div>
+                  {/* {total > 0 && (
+                    <div className="mt-4 flex justify-center">
+                      <a
+                        href="https://www.upi.me/pay?pa=alanjohnchacko.live-1@okicici&am=20"
+                        className="inline-block rounded-lg bg-black px-5 py-2.5 text-white no-underline transition-opacity hover:opacity-90"
+                        style={{ padding: "10px 20px", background: "black", color: "white", borderRadius: "8px", textDecoration: "none" }}
+                      >
+                        Pay with GPay
+                      </a>
+                    </div>
+                  )} */}
                 </div>
               )}
 
