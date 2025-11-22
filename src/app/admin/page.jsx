@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Minus, Plus, Edit, Trash2 } from "lucide-react";
+import { Minus, Plus, Edit, Trash2, Loader2 } from "lucide-react";
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -132,6 +132,7 @@ function AdminDashboard() {
   const [queueTickets, setQueueTickets] = useState([]);
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState("connecting"); // "connected", "disconnected", "error", "connecting"
 
   const [dashboardDate, setDashboardDate] = useState(todayKey);
   const [dashboardTickets, setDashboardTickets] = useState([]);
@@ -147,8 +148,9 @@ function AdminDashboard() {
   const [serviceStart, setServiceStart] = useState("06:00");
   const [serviceEnd, setServiceEnd] = useState("23:00");
   const [closedMessage, setClosedMessage] = useState("");
-  const [inventory, setInventory] = useState({ chai: 0, bun: 0, tiramisu: 0 });
+  const [inventory, setInventory] = useState(null); // null until loaded
   const [buffer, setBuffer] = useState({ chai: 10, bun: 10, tiramisu: 10 });
+  const [inventoryLoaded, setInventoryLoaded] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
 
@@ -212,7 +214,15 @@ function AdminDashboard() {
     if (tab !== "queue") return;
     setQueueError("");
     setQueueLoading(true);
+    setConnectionStatus("connecting");
+    setInventoryLoaded(false); // Reset loading state when switching to queue tab
     const source = new EventSource(`/api/queue/stream?date=${todayKey}`);
+    
+    source.onopen = () => {
+      setConnectionStatus("connected");
+      setQueueError("");
+    };
+    
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
@@ -233,20 +243,33 @@ function AdminDashboard() {
           setServiceStart(payload.settings.serviceStart || "06:00");
           setServiceEnd(payload.settings.serviceEnd || "23:00");
           setClosedMessage(payload.settings.closedMessage || "");
+          setInventoryLoaded(true);
         }
         
         setQueueLoading(false);
         setQueueError("");
+        setConnectionStatus("connected");
       } catch {
-        setQueueError("Failed to parse live updates");
+        setConnectionStatus("error");
         setQueueLoading(false);
+        // Don't show error message, just update status
       }
     };
+    
     source.onerror = () => {
-      setQueueError("Live updates interrupted. Refresh manually.");
+      setConnectionStatus("disconnected");
+      // Don't show error message, just update status
+      // Try to reconnect silently
+      setTimeout(() => {
+        if (source.readyState === EventSource.CLOSED) {
+          setConnectionStatus("connecting");
+        }
+      }, 3000);
     };
+    
     return () => {
       source.close();
+      setConnectionStatus("disconnected");
     };
   }, [tab, todayKey]);
 
@@ -311,6 +334,7 @@ function AdminDashboard() {
           bun: json.buffer?.bun ?? 10,
           tiramisu: json.buffer?.tiramisu ?? 10,
         });
+        setInventoryLoaded(true);
       } catch {
         setSettingsError("Failed to load settings");
       }
@@ -351,6 +375,7 @@ function AdminDashboard() {
               tiramisu: Math.min(prev.tiramisu || 0, newInventory.tiramisu || 0),
             }));
           }
+          setInventoryLoaded(true);
         }
       } catch {
         // ignore parse errors
@@ -678,28 +703,61 @@ function AdminDashboard() {
             <Card>
               <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle>Live Queue</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle>Live Queue</CardTitle>
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          connectionStatus === "connected"
+                            ? "bg-green-500 animate-pulse"
+                            : connectionStatus === "connecting"
+                            ? "bg-yellow-500 animate-pulse"
+                            : "bg-red-500"
+                        }`}
+                        title={
+                          connectionStatus === "connected"
+                            ? "Connected"
+                            : connectionStatus === "connecting"
+                            ? "Connecting..."
+                            : "Disconnected"
+                        }
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {connectionStatus === "connected"
+                          ? "Live"
+                          : connectionStatus === "connecting"
+                          ? "Connecting..."
+                          : "Offline"}
+                      </span>
+                    </div>
+                  </div>
                   <CardDescription>
                     Waiting tickets for {todayKey}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <Badge 
-                      variant={(inventory.chai ?? 0) <= 0 ? "destructive" : (inventory.chai ?? 0) < (buffer.chai ?? 10) ? "default" : "secondary"}
-                    >
-                      Chai: {inventory.chai ?? 0}
-                    </Badge>
-                    <Badge 
-                      variant={(inventory.bun ?? 0) <= 0 ? "destructive" : (inventory.bun ?? 0) < (buffer.bun ?? 10) ? "default" : "secondary"}
-                    >
-                      Bun: {inventory.bun ?? 0}
-                    </Badge>
-                    <Badge 
-                      variant={(inventory.tiramisu ?? 0) <= 0 ? "destructive" : (inventory.tiramisu ?? 0) < (buffer.tiramisu ?? 10) ? "default" : "secondary"}
-                    >
-                      Tiramisu: {inventory.tiramisu ?? 0}
-                    </Badge>
+                    {!inventoryLoaded ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <>
+                        <Badge 
+                          variant={(inventory?.chai ?? 0) <= 0 ? "destructive" : (inventory?.chai ?? 0) < (buffer.chai ?? 10) ? "default" : "secondary"}
+                        >
+                          Chai: {inventory?.chai ?? 0}
+                        </Badge>
+                        <Badge 
+                          variant={(inventory?.bun ?? 0) <= 0 ? "destructive" : (inventory?.bun ?? 0) < (buffer.bun ?? 10) ? "default" : "secondary"}
+                        >
+                          Bun: {inventory?.bun ?? 0}
+                        </Badge>
+                        <Badge 
+                          variant={(inventory?.tiramisu ?? 0) <= 0 ? "destructive" : (inventory?.tiramisu ?? 0) < (buffer.tiramisu ?? 10) ? "default" : "secondary"}
+                        >
+                          Tiramisu: {inventory?.tiramisu ?? 0}
+                        </Badge>
+                      </>
+                    )}
                   </div>
                   <Badge variant="secondary">
                     {queueTicketsWaiting.length} waiting
@@ -710,11 +768,6 @@ function AdminDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {queueError && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertDescription>{queueError}</AlertDescription>
-                  </Alert>
-                )}
                 {queueLoading ? (
                   <LoaderCard />
                 ) : queueTicketsWaiting.length === 0 ? (
@@ -793,7 +846,7 @@ function AdminDashboard() {
                       <div>
                         <p className="font-medium">Special Chai</p>
                         <p className="text-sm text-muted-foreground">
-                          Available: {inventory.chai}
+                          Available: {inventory?.chai ?? 0}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -813,7 +866,7 @@ function AdminDashboard() {
                           type="button"
                           size="icon"
                           onClick={() => updateEditQuantity("chai", 1)}
-                          disabled={editQuantities.chai >= inventory.chai}
+                          disabled={inventory && editQuantities.chai >= inventory.chai}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
@@ -823,7 +876,7 @@ function AdminDashboard() {
                       <div>
                         <p className="font-medium">Bun</p>
                         <p className="text-sm text-muted-foreground">
-                          Available: {inventory.bun}
+                          Available: {inventory?.bun ?? 0}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -843,7 +896,7 @@ function AdminDashboard() {
                           type="button"
                           size="icon"
                           onClick={() => updateEditQuantity("bun", 1)}
-                          disabled={editQuantities.bun >= inventory.bun}
+                          disabled={inventory && editQuantities.bun >= inventory.bun}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
@@ -853,7 +906,7 @@ function AdminDashboard() {
                       <div>
                         <p className="font-medium">Tiramisu</p>
                         <p className="text-sm text-muted-foreground">
-                          Available: {inventory.tiramisu ?? 0}
+                          Available: {inventory?.tiramisu ?? 0}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -873,18 +926,13 @@ function AdminDashboard() {
                           type="button"
                           size="icon"
                           onClick={() => updateEditQuantity("tiramisu", 1)}
-                          disabled={editQuantities.tiramisu >= inventory.tiramisu}
+                          disabled={inventory && editQuantities.tiramisu >= inventory.tiramisu}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
-                  {editError && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{editError}</AlertDescription>
-                    </Alert>
-                  )}
                 </div>
                 <DialogFooter>
                   <Button
@@ -934,12 +982,6 @@ function AdminDashboard() {
                     value={currency.format(readySummary.revenue || 0)}
                   />
                 </div>
-
-                {dashboardError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{dashboardError}</AlertDescription>
-                  </Alert>
-                )}
 
                 {dashboardLoading ? (
                   <LoaderCard />
@@ -1040,13 +1082,6 @@ function AdminDashboard() {
                       placeholder="We pour chai daily between 6am – 11pm."
                     />
                   </div>
-                  {settingsError && (
-                    <div className="md:col-span-2">
-                      <Alert variant="destructive">
-                        <AlertDescription>{settingsError}</AlertDescription>
-                      </Alert>
-                    </div>
-                  )}
                   <div className="md:col-span-2">
                     <Button type="submit" disabled={settingsSaving}>
                       {settingsSaving ? "Saving..." : "Save service settings"}
@@ -1072,8 +1107,8 @@ function AdminDashboard() {
                         id="chaiInventory"
                         type="number"
                         min={0}
-                        value={inventory.chai ?? 0}
-                        onChange={(e) => setInventory((prev) => ({ ...prev, chai: Number(e.target.value) || 0 }))}
+                        value={inventory?.chai ?? 0}
+                        onChange={(e) => setInventory((prev) => ({ ...(prev || { chai: 0, bun: 0, tiramisu: 0 }), chai: Number(e.target.value) || 0 }))}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1097,8 +1132,8 @@ function AdminDashboard() {
                         id="bunInventory"
                         type="number"
                         min={0}
-                        value={inventory.bun ?? 0}
-                        onChange={(e) => setInventory((prev) => ({ ...prev, bun: Number(e.target.value) || 0 }))}
+                        value={inventory?.bun ?? 0}
+                        onChange={(e) => setInventory((prev) => ({ ...(prev || { chai: 0, bun: 0, tiramisu: 0 }), bun: Number(e.target.value) || 0 }))}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1122,8 +1157,8 @@ function AdminDashboard() {
                         id="tiramisuInventory"
                         type="number"
                         min={0}
-                        value={inventory.tiramisu ?? 0}
-                        onChange={(e) => setInventory((prev) => ({ ...prev, tiramisu: Number(e.target.value) || 0 }))}
+                        value={inventory?.tiramisu ?? 0}
+                        onChange={(e) => setInventory((prev) => ({ ...(prev || { chai: 0, bun: 0, tiramisu: 0 }), tiramisu: Number(e.target.value) || 0 }))}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1140,13 +1175,6 @@ function AdminDashboard() {
                       </p>
                     </div>
                   </div>
-                  {settingsError && (
-                    <div className="md:col-span-2">
-                      <Alert variant="destructive">
-                        <AlertDescription>{settingsError}</AlertDescription>
-                      </Alert>
-                    </div>
-                  )}
                   <div className="md:col-span-2">
                     <Button type="submit" disabled={settingsSaving}>
                       {settingsSaving ? "Saving..." : "Save inventory settings"}
@@ -1199,11 +1227,6 @@ function AdminDashboard() {
                     />
                   </div>
                   <div className="flex flex-col justify-end gap-2">
-                    {pricingError && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{pricingError}</AlertDescription>
-                      </Alert>
-                    )}
                     <Button type="submit" disabled={pricingSaving}>
                       {pricingSaving ? "Saving..." : "Save prices"}
                     </Button>

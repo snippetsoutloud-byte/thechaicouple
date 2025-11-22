@@ -1,5 +1,5 @@
 config:
-  target: "http://localhost:3000/"
+  target: "https://thechaicouple.vercel.app"
   phases:
     - duration: 10
       arrivalRate: 10  # 10 requests per second

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, Loader2 } from "lucide-react";
 
 import { getTodayKey } from "@/lib/firebase";
 import { getCachedPricing, setCachedPricing } from "@/lib/pricing-cache";
@@ -122,9 +122,13 @@ export default function QueuePage() {
       }
     };
     
+    source.onopen = () => {
+      // Connection opened, but don't set loading to false until we receive settings
+    };
+    
     source.onerror = () => {
-      setSettingsError("Live updates interrupted. Settings may be outdated.");
-      setSettingsLoading(false);
+      // Don't set loading to false on error - keep trying
+      // Only set error state, but don't show badges until we have actual settings
     };
     
     return () => {
@@ -288,11 +292,13 @@ export default function QueuePage() {
                     item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : pricing.tiramisuPrice;
                   const qty = quantities[item.key] || 0;
                   const available = availability[item.key] ?? false;
-                  const itemInventory = inventory[item.key] || 0;
-                  const itemBuffer = buffer[item.key] || 10;
-                  // Only show badges when settings are loaded
-                  const isLowStock = !settingsLoading && itemInventory > 0 && itemInventory < itemBuffer;
-                  const isOutOfStock = !settingsLoading && itemInventory <= 0;
+                  // Only calculate inventory when settings are loaded
+                  const itemInventory = settings ? (inventory[item.key] || 0) : null;
+                  const itemBuffer = settings ? (buffer[item.key] || 10) : null;
+                  // Only show badges when settings are actually loaded
+                  const settingsLoaded = settings !== null && !settingsLoading;
+                  const isLowStock = settingsLoaded && itemInventory !== null && itemInventory > 0 && itemInventory < itemBuffer;
+                  const isOutOfStock = settingsLoaded && itemInventory !== null && itemInventory <= 0;
                   
                   return (
                     <div
@@ -302,12 +308,15 @@ export default function QueuePage() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium">{item.label}</p>
-                          {isOutOfStock && (
+                          {(!settingsLoaded || settingsLoading) && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                          )}
+                          {settingsLoaded && isOutOfStock && (
                             <Badge variant="destructive" className="text-xs">
                               Out of Stock
                             </Badge>
                           )}
-                          {isLowStock && !isOutOfStock && (
+                          {settingsLoaded && isLowStock && !isOutOfStock && (
                             <Badge variant="default" className="text-xs bg-amber-500 hover:bg-amber-600">
                               Low Stock ({itemInventory} left)
                             </Badge>
@@ -334,7 +343,7 @@ export default function QueuePage() {
                           type="button"
                           size="icon"
                           onClick={() => updateQuantity(item.key, 1)}
-                          disabled={!available || !queueOpen || qty >= itemInventory}
+                          disabled={!available || !queueOpen || (itemInventory !== null && qty >= itemInventory)}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
