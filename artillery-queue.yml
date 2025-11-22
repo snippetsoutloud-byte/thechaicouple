@@ -2,8 +2,8 @@ config:
   target: "http://localhost:3000/"
   phases:
     - duration: 10
-      arrivalRate: 5 # 10 requests per second
-      maxVusers: 10
+      arrivalRate: 10  # 10 requests per second
+      maxVusers: 50
   processor: "./artillery-processor.js"
 scenarios:
   - name: "Join Queue"

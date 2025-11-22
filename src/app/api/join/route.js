@@ -35,14 +35,48 @@ export async function POST(request) {
 
     const dateKey = getTodayKey();
     const dayRef = doc(db, "queues", dateKey);
+    const settingsRef = doc(db, "config", "app-settings");
 
+    // Calculate inventory changes
+    let chaiDecrement = 0;
+    let bunDecrement = 0;
+    let tiramisuDecrement = 0;
+    
+    items.forEach((item) => {
+      const qty = Number(item.qty) || 0;
+      if (isChai(item.name)) {
+        chaiDecrement += qty;
+      } else if (isBun(item.name)) {
+        bunDecrement += qty;
+      } else if (isTiramisu(item.name)) {
+        tiramisuDecrement += qty;
+      }
+    });
+
+    // Atomic transaction: create ticket AND decrement inventory
     const result = await runTransaction(db, async (tx) => {
+      // Read queue day document
       const daySnap = await tx.get(dayRef);
       const current = daySnap.exists()
         ? daySnap.data().nextPosition || 0
         : 0;
       const nextPosition = current + 1;
 
+      // Read settings document for inventory
+      const settingsSnap = await tx.get(settingsRef);
+      if (!settingsSnap.exists()) {
+        throw new Error("Settings document not found");
+      }
+
+      const currentSettings = settingsSnap.data();
+      const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+
+      // Calculate new inventory (prevent negative)
+      const newChaiInventory = Math.max(0, (currentInventory.chai || 0) - chaiDecrement);
+      const newBunInventory = Math.max(0, (currentInventory.bun || 0) - bunDecrement);
+      const newTiramisuInventory = Math.max(0, (currentInventory.tiramisu || 0) - tiramisuDecrement);
+
+      // Update queue day document
       tx.set(
         dayRef,
         {
@@ -52,9 +86,9 @@ export async function POST(request) {
         { merge: true }
       );
 
+      // Create ticket
       const ticketsCol = collection(dayRef, "tickets");
       const ticketRef = doc(ticketsCol);
-
       const ticket = {
         name,
         items,
@@ -64,49 +98,18 @@ export async function POST(request) {
         updatedAt: serverTimestamp(),
         dateKey,
       };
-
       tx.set(ticketRef, ticket);
 
-      return { id: ticketRef.id, position: nextPosition, dateKey, items };
-    });
-
-    // Decrement inventory when order is placed
-    const settingsRef = doc(db, "config", "app-settings");
-    const settingsSnap = await getDoc(settingsRef);
-    
-    if (settingsSnap.exists()) {
-      const currentSettings = settingsSnap.data();
-      const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
-      
-      // Calculate inventory changes
-      let chaiDecrement = 0;
-      let bunDecrement = 0;
-      let tiramisuDecrement = 0;
-      
-      items.forEach((item) => {
-        const qty = Number(item.qty) || 0;
-        if (isChai(item.name)) {
-          chaiDecrement += qty;
-        } else if (isBun(item.name)) {
-          bunDecrement += qty;
-        } else if (isTiramisu(item.name)) {
-          tiramisuDecrement += qty;
-        }
-      });
-
-      // Only decrement if we have enough inventory (prevent negative)
-      const newChaiInventory = Math.max(0, (currentInventory.chai || 0) - chaiDecrement);
-      const newBunInventory = Math.max(0, (currentInventory.bun || 0) - bunDecrement);
-      const newTiramisuInventory = Math.max(0, (currentInventory.tiramisu || 0) - tiramisuDecrement);
-
-      // Update only inventory field (more efficient than updating entire settings doc)
-      await updateDoc(settingsRef, {
+      // Update inventory atomically
+      tx.update(settingsRef, {
         "inventory.chai": newChaiInventory,
         "inventory.bun": newBunInventory,
         "inventory.tiramisu": newTiramisuInventory,
         updatedAt: serverTimestamp(),
       });
-    }
+
+      return { id: ticketRef.id, position: nextPosition, dateKey, items };
+    });
 
     return NextResponse.json(result, { status: 201 });
   } catch (err) {

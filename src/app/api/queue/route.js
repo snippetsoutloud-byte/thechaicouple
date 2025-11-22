@@ -13,6 +13,7 @@ const {
   setDoc,
   updateDoc,
   serverTimestamp,
+  runTransaction,
 } = firestoreHelpers;
 
 export async function GET(request) {
@@ -46,21 +47,21 @@ export async function DELETE() {
     const dateKey = getTodayKey();
     const dayRef = doc(db, "queues", dateKey);
     const ticketsCol = collection(dayRef, "tickets");
+    const settingsRef = doc(db, "config", "app-settings");
 
+    // First, get all tickets to calculate restore amounts
     const snapshot = await getDocs(ticketsCol);
-
-    const deletions = [];
+    
     let totalChaiRestore = 0;
     let totalBunRestore = 0;
     let totalTiramisuRestore = 0;
+    const ticketRefsToDelete = [];
 
     snapshot.forEach((docSnap) => {
       const ticketData = docSnap.data();
-      // Only delete tickets with status "waiting", preserve "ready" (served) tickets
       if (ticketData.status === "waiting") {
-        deletions.push(deleteDoc(docSnap.ref));
+        ticketRefsToDelete.push(docSnap.ref);
         
-        // Calculate inventory to restore
         const items = Array.isArray(ticketData.items) ? ticketData.items : [];
         items.forEach((item) => {
           const qty = Number(item.qty) || 0;
@@ -75,28 +76,43 @@ export async function DELETE() {
       }
     });
 
-    await Promise.all(deletions);
+    // Atomic transaction: delete all tickets AND restore inventory
+    if (ticketRefsToDelete.length > 0) {
+      await runTransaction(db, async (tx) => {
+        // Read settings
+        const settingsSnap = await tx.get(settingsRef);
+        if (!settingsSnap.exists()) {
+          // If settings don't exist, just delete tickets
+          ticketRefsToDelete.forEach(ref => tx.delete(ref));
+          return;
+        }
 
-    // Restore inventory for all deleted waiting tickets
-    if (totalChaiRestore > 0 || totalBunRestore > 0 || totalTiramisuRestore > 0) {
-      const settingsRef = doc(db, "config", "app-settings");
-      const settingsSnap = await getDoc(settingsRef);
-      
-      if (settingsSnap.exists()) {
         const currentSettings = settingsSnap.data();
         const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
-        
-        // Update only inventory field (more efficient than updating entire settings doc)
-        await updateDoc(settingsRef, {
+
+        // Delete all tickets
+        ticketRefsToDelete.forEach(ref => tx.delete(ref));
+
+        // Restore inventory atomically
+        tx.update(settingsRef, {
           "inventory.chai": (currentInventory.chai || 0) + totalChaiRestore,
           "inventory.bun": (currentInventory.bun || 0) + totalBunRestore,
           "inventory.tiramisu": (currentInventory.tiramisu || 0) + totalTiramisuRestore,
           updatedAt: serverTimestamp(),
         });
-      }
+      });
     }
 
-    return NextResponse.json({ dateKey, cleared: true }, { status: 200 });
+    return NextResponse.json({ 
+      dateKey, 
+      cleared: true,
+      ticketsDeleted: ticketRefsToDelete.length,
+      restored: {
+        chai: totalChaiRestore,
+        bun: totalBunRestore,
+        tiramisu: totalTiramisuRestore
+      }
+    }, { status: 200 });
   } catch (err) {
     console.error("Error in /api/queue DELETE:", err);
     return NextResponse.json(

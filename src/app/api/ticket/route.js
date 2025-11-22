@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db, firestoreHelpers } from "@/lib/firebase";
 import { ITEM_NAMES, isChai, isBun, isTiramisu } from "@/lib/item-names";
 
-const { doc, collection, deleteDoc, getDoc, setDoc, updateDoc, serverTimestamp } = firestoreHelpers;
+const { doc, collection, deleteDoc, getDoc, setDoc, updateDoc, serverTimestamp, runTransaction } = firestoreHelpers;
 
 export async function DELETE(request) {
   try {
@@ -19,61 +19,67 @@ export async function DELETE(request) {
 
     const dayRef = doc(db, "queues", dateKey);
     const ticketRef = doc(collection(dayRef, "tickets"), id);
-    
-    // Get ticket data before deleting to restore inventory
-    const ticketSnap = await getDoc(ticketRef);
-    if (!ticketSnap.exists()) {
-      return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
-    }
+    const settingsRef = doc(db, "config", "app-settings");
 
-    const ticketData = ticketSnap.data();
-    const items = Array.isArray(ticketData.items) ? ticketData.items : [];
-    
-    // Only restore inventory if ticket status is "waiting" (not yet served)
-    // If status is "ready", inventory was already consumed
-    const shouldRestoreInventory = ticketData.status === "waiting";
-    
-    // Delete the ticket
-    await deleteDoc(ticketRef);
+    // Atomic transaction: delete ticket AND restore inventory
+    try {
+      await runTransaction(db, async (tx) => {
+        // Read ticket
+        const ticketSnap = await tx.get(ticketRef);
+        if (!ticketSnap.exists()) {
+          throw new Error("Ticket not found");
+        }
 
-    // Restore inventory if ticket was waiting
-    if (shouldRestoreInventory) {
-      const settingsRef = doc(db, "config", "app-settings");
-      const settingsSnap = await getDoc(settingsRef);
-      
-      if (settingsSnap.exists()) {
-        const currentSettings = settingsSnap.data();
-        const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+        const ticketData = ticketSnap.data();
+        const items = Array.isArray(ticketData.items) ? ticketData.items : [];
         
-        // Calculate inventory to restore
-        let chaiRestore = 0;
-        let bunRestore = 0;
-        let tiramisuRestore = 0;
-        
-        items.forEach((item) => {
-          const qty = Number(item.qty) || 0;
-          if (isChai(item.name)) {
-            chaiRestore += qty;
-          } else if (isBun(item.name)) {
-            bunRestore += qty;
-          } else if (isTiramisu(item.name)) {
-            tiramisuRestore += qty;
+        // Only restore inventory if ticket status is "waiting"
+        const shouldRestoreInventory = ticketData.status === "waiting";
+
+        // Delete the ticket
+        tx.delete(ticketRef);
+
+        // Restore inventory if needed
+        if (shouldRestoreInventory) {
+          // Read settings
+          const settingsSnap = await tx.get(settingsRef);
+          if (!settingsSnap.exists()) {
+            return; // Settings not found, skip restore
           }
-        });
 
-        // Restore inventory
-        const newChaiInventory = (currentInventory.chai || 0) + chaiRestore;
-        const newBunInventory = (currentInventory.bun || 0) + bunRestore;
-        const newTiramisuInventory = (currentInventory.tiramisu || 0) + tiramisuRestore;
+          const currentSettings = settingsSnap.data();
+          const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+          
+          // Calculate inventory to restore
+          let chaiRestore = 0;
+          let bunRestore = 0;
+          let tiramisuRestore = 0;
+          
+          items.forEach((item) => {
+            const qty = Number(item.qty) || 0;
+            if (isChai(item.name)) {
+              chaiRestore += qty;
+            } else if (isBun(item.name)) {
+              bunRestore += qty;
+            } else if (isTiramisu(item.name)) {
+              tiramisuRestore += qty;
+            }
+          });
 
-        // Update only inventory field (more efficient than updating entire settings doc)
-        await updateDoc(settingsRef, {
-          "inventory.chai": newChaiInventory,
-          "inventory.bun": newBunInventory,
-          "inventory.tiramisu": newTiramisuInventory,
-          updatedAt: serverTimestamp(),
-        });
+          // Restore inventory atomically
+          tx.update(settingsRef, {
+            "inventory.chai": (currentInventory.chai || 0) + chaiRestore,
+            "inventory.bun": (currentInventory.bun || 0) + bunRestore,
+            "inventory.tiramisu": (currentInventory.tiramisu || 0) + tiramisuRestore,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
+    } catch (err) {
+      if (err.message === "Ticket not found") {
+        return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
       }
+      throw err;
     }
 
     return NextResponse.json({ id, dateKey, deleted: true }, { status: 200 });
@@ -102,49 +108,7 @@ export async function PATCH(request) {
 
     const dayRef = doc(db, "queues", dateKey);
     const ticketRef = doc(collection(dayRef, "tickets"), id);
-    const ticketSnap = await getDoc(ticketRef);
-    
-    if (!ticketSnap.exists()) {
-      return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
-    }
-
-    const ticketData = ticketSnap.data();
-    
-    // Only allow editing waiting tickets
-    if (ticketData.status !== "waiting") {
-      return NextResponse.json(
-        { error: "Can only edit waiting tickets" },
-        { status: 400 }
-      );
-    }
-
-    const oldItems = Array.isArray(ticketData.items) ? ticketData.items : [];
-    
-    // Get current inventory
     const settingsRef = doc(db, "config", "app-settings");
-    const settingsSnap = await getDoc(settingsRef);
-    
-    if (!settingsSnap.exists()) {
-      return NextResponse.json({ error: "Settings not found" }, { status: 404 });
-    }
-
-    const currentSettings = settingsSnap.data();
-    const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
-    
-    // Calculate old quantities (to restore)
-    let oldChaiQty = 0;
-    let oldBunQty = 0;
-    let oldTiramisuQty = 0;
-    oldItems.forEach((item) => {
-      const qty = Number(item.qty) || 0;
-      if (isChai(item.name)) {
-        oldChaiQty += qty;
-      } else if (isBun(item.name)) {
-        oldBunQty += qty;
-      } else if (isTiramisu(item.name)) {
-        oldTiramisuQty += qty;
-      }
-    });
 
     // Calculate new quantities (to decrement)
     let newChaiQty = 0;
@@ -161,59 +125,95 @@ export async function PATCH(request) {
       }
     });
 
-    // Calculate net change
-    const chaiChange = newChaiQty - oldChaiQty;
-    const bunChange = newBunQty - oldBunQty;
-    const tiramisuChange = newTiramisuQty - oldTiramisuQty;
+    // Atomic transaction: update ticket AND inventory
+    try {
+      await runTransaction(db, async (tx) => {
+        // Read ticket
+        const ticketSnap = await tx.get(ticketRef);
+        if (!ticketSnap.exists()) {
+          throw new Error("Ticket not found");
+        }
 
-    // Check if new quantities exceed available inventory
-    const availableChai = (currentInventory.chai || 0) - chaiChange;
-    const availableBun = (currentInventory.bun || 0) - bunChange;
-    const availableTiramisu = (currentInventory.tiramisu || 0) - tiramisuChange;
+        const ticketData = ticketSnap.data();
+        if (ticketData.status !== "waiting") {
+          throw new Error("Can only edit waiting tickets");
+        }
 
-    if (availableChai < 0) {
-      return NextResponse.json(
-        { 
-          error: "Stock exceeded", 
-          message: `Insufficient Chai inventory. Available: ${currentInventory.chai}, Requested: ${newChaiQty}, Already reserved: ${oldChaiQty}` 
-        },
-        { status: 400 }
-      );
+        const oldItems = Array.isArray(ticketData.items) ? ticketData.items : [];
+        
+        // Calculate old quantities (to restore)
+        let oldChaiQty = 0;
+        let oldBunQty = 0;
+        let oldTiramisuQty = 0;
+        oldItems.forEach((item) => {
+          const qty = Number(item.qty) || 0;
+          if (isChai(item.name)) {
+            oldChaiQty += qty;
+          } else if (isBun(item.name)) {
+            oldBunQty += qty;
+          } else if (isTiramisu(item.name)) {
+            oldTiramisuQty += qty;
+          }
+        });
+
+        // Read settings
+        const settingsSnap = await tx.get(settingsRef);
+        if (!settingsSnap.exists()) {
+          throw new Error("Settings not found");
+        }
+
+        const currentSettings = settingsSnap.data();
+        const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+
+        // Calculate net change
+        const chaiChange = newChaiQty - oldChaiQty;
+        const bunChange = newBunQty - oldBunQty;
+        const tiramisuChange = newTiramisuQty - oldTiramisuQty;
+
+        // Check if new quantities exceed available inventory
+        const availableChai = (currentInventory.chai || 0) - chaiChange;
+        const availableBun = (currentInventory.bun || 0) - bunChange;
+        const availableTiramisu = (currentInventory.tiramisu || 0) - tiramisuChange;
+
+        if (availableChai < 0 || availableBun < 0 || availableTiramisu < 0) {
+          throw new Error("Stock exceeded");
+        }
+
+        // Update ticket
+        tx.update(ticketRef, {
+          items,
+          updatedAt: serverTimestamp(),
+        });
+
+        // Update inventory atomically
+        tx.update(settingsRef, {
+          "inventory.chai": availableChai,
+          "inventory.bun": availableBun,
+          "inventory.tiramisu": availableTiramisu,
+          updatedAt: serverTimestamp(),
+        });
+      });
+    } catch (err) {
+      if (err.message === "Ticket not found") {
+        return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+      }
+      if (err.message === "Can only edit waiting tickets") {
+        return NextResponse.json(
+          { error: "Can only edit waiting tickets" },
+          { status: 400 }
+        );
+      }
+      if (err.message === "Settings not found") {
+        return NextResponse.json({ error: "Settings not found" }, { status: 404 });
+      }
+      if (err.message === "Stock exceeded") {
+        return NextResponse.json(
+          { error: "Stock exceeded" },
+          { status: 400 }
+        );
+      }
+      throw err;
     }
-
-    if (availableBun < 0) {
-      return NextResponse.json(
-        { 
-          error: "Stock exceeded", 
-          message: `Insufficient Bun inventory. Available: ${currentInventory.bun}, Requested: ${newBunQty}, Already reserved: ${oldBunQty}` 
-        },
-        { status: 400 }
-      );
-    }
-
-    if (availableTiramisu < 0) {
-      return NextResponse.json(
-        { 
-          error: "Stock exceeded", 
-          message: `Insufficient Tiramisu inventory. Available: ${currentInventory.tiramisu}, Requested: ${newTiramisuQty}, Already reserved: ${oldTiramisuQty}` 
-        },
-        { status: 400 }
-      );
-    }
-
-    // Update ticket with new items
-    await updateDoc(ticketRef, {
-      items,
-      updatedAt: serverTimestamp(),
-    });
-
-    // Update inventory (restore old, decrement new) - only update inventory field
-    await updateDoc(settingsRef, {
-      "inventory.chai": availableChai,
-      "inventory.bun": availableBun,
-      "inventory.tiramisu": availableTiramisu,
-      updatedAt: serverTimestamp(),
-    });
 
     return NextResponse.json({ id, dateKey, items }, { status: 200 });
   } catch (err) {
