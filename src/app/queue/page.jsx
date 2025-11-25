@@ -245,9 +245,7 @@ export default function QueuePage() {
               />
             </div>
             <CardTitle className="text-3xl">Join the Queue</CardTitle>
-            <CardDescription>
-              Tell us your name, choose your snacks, and get a live token instantly.
-            </CardDescription>
+           
             {settings && settings.serviceStart && settings.serviceEnd && (
               <Badge variant="outline" className="mt-2">
                 Service hours: {(() => {

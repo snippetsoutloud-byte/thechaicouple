@@ -406,10 +406,10 @@ export default function StatusPage() {
                 Exit Queue
               </Button>
             </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
+            {/* <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Tokens reset nightly.</span>
               <span>Need help? Visit the counter.</span>
-            </div>
+            </div> */}
           </CardFooter>
         </Card>
       </div>
