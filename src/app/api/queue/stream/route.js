@@ -202,8 +202,21 @@ export async function GET(request) {
         listenerState.clients.delete(controller);
       }
 
+      // Add heartbeat to keep connection alive and prevent timeout
+      const heartbeatInterval = setInterval(() => {
+        try {
+          // Send a comment line (heartbeat) to keep connection alive
+          // Comments in SSE start with ':' and are ignored by EventSource
+          controller.enqueue(encoder.encode(`: heartbeat ${Date.now()}\n\n`));
+        } catch (err) {
+          // Connection is dead, stop heartbeat
+          clearInterval(heartbeatInterval);
+        }
+      }, 15000); // Send heartbeat every 15 seconds
+
       // Cleanup when client disconnects
       const cleanup = () => {
+        clearInterval(heartbeatInterval); // Clear heartbeat interval
         listenerState.clients.delete(controller);
         
         // If no clients left, clean up listeners
