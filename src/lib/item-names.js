@@ -3,6 +3,7 @@ export const ITEM_NAMES = {
   CHAI: "Special Chai",
   BUN: "Bun",
   TIRAMISU: "Tiramisu",
+  MILK_BUN: "Milk Bun",
   // Legacy support for old data
   CHAI_LEGACY: "Irani Chai",
 };
@@ -20,5 +21,10 @@ export function isBun(itemName) {
 // Helper function to check if an item is tiramisu
 export function isTiramisu(itemName) {
   return itemName === ITEM_NAMES.TIRAMISU;
+}
+
+// Helper function to check if an item is milk bun
+export function isMilkBun(itemName) {
+  return itemName === ITEM_NAMES.MILK_BUN;
 }
 

@@ -1,35 +1,50 @@
 /**
- * Test script to simulate 200 users joining the queue simultaneously
- * Run with: node test.js
+ * Load Test for The Chai Couple Queue API
+ * 
+ * Tests the /api/join endpoint with realistic concurrent users
+ * 
+ * Usage:
+ *   Test Production: BASE_URL=https://thechaicouple.devou.in node test.js
+ *   Test Local:      BASE_URL=http://localhost:3000 node test.js
+ *   Custom users:    NUM_USERS=100 BASE_URL=https://thechaicouple.devou.in node test.js
  */
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-const NUM_USERS = 200;
+const BASE_URL = process.env.BASE_URL || 'https://thechaicouple.devou.in';
+const NUM_USERS = parseInt(process.env.NUM_USERS) || 50;
+const RAMP_UP_TIME = parseInt(process.env.RAMP_UP_TIME) || 0; // ms between requests
 
 // Generate random items for each user
 function generateRandomItems() {
   const items = [];
   
-  // Randomly add chai (70% chance)
-  if (Math.random() > 0.3) {
+  // 80% of customers order chai
+  if (Math.random() > 0.2) {
     items.push({
-      name: "Irani Chai",
+      name: "Special Chai",
       qty: Math.floor(Math.random() * 3) + 1 // 1-3 chai
     });
   }
   
-  // Randomly add bun (50% chance)
-  if (Math.random() > 0.5) {
+  // 60% of customers order bun
+  if (Math.random() > 0.4) {
     items.push({
       name: "Bun",
-      qty: Math.floor(Math.random() * 2) + 1 // 1-2 bun
+      qty: Math.floor(Math.random() * 3) + 1 // 1-3 buns
+    });
+  }
+  
+  // 20% of customers order tiramisu
+  if (Math.random() > 0.8) {
+    items.push({
+      name: "Tiramisu",
+      qty: Math.floor(Math.random() * 2) + 1 // 1-2 tiramisu
     });
   }
   
   // Ensure at least one item
   if (items.length === 0) {
     items.push({
-      name: "Irani Chai",
+      name: "Special Chai",
       qty: 1
     });
   }
@@ -37,17 +52,24 @@ function generateRandomItems() {
   return items;
 }
 
+// Generate idempotency key
+function generateIdempotencyKey() {
+  return `load_test_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+}
+
 // Simulate a single user joining
 async function joinQueue(userId) {
   const startTime = Date.now();
-  const name = `Test User ${userId}`;
+  const name = NAMES[Math.floor(Math.random() * NAMES.length)];
   const items = generateRandomItems();
+  const idempotencyKey = generateIdempotencyKey();
   
   try {
     const response = await fetch(`${BASE_URL}/api/join`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify({
         name,
@@ -61,38 +83,69 @@ async function joinQueue(userId) {
     
     return {
       userId,
+      name,
       success: response.ok,
       status: response.status,
       duration,
       data: response.ok ? data : data.error,
-      items
+      items,
+      idempotencyKey
     };
   } catch (error) {
     const endTime = Date.now();
     const duration = endTime - startTime;
     return {
       userId,
+      name,
       success: false,
       status: 0,
       duration,
       data: error.message,
-      items
+      items,
+      idempotencyKey
     };
   }
 }
 
+// Delay function for ramp-up
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Main test function
 async function runTest() {
-  console.log(`🚀 Starting test: ${NUM_USERS} users joining simultaneously`);
-  console.log(`📍 Target URL: ${BASE_URL}/api/join\n`);
+  console.log('='.repeat(60));
+  console.log('🧪 THE CHAI COUPLE - LOAD TEST');
+  console.log('='.repeat(60));
+  console.log(`📍 Target: ${BASE_URL}/api/join`);
+  console.log(`👥 Users: ${NUM_USERS}`);
+  console.log(`⏱️  Ramp-up: ${RAMP_UP_TIME}ms between requests`);
+  console.log(`⏰ Start Time: ${new Date().toLocaleString()}`);
+  console.log('='.repeat(60));
+  console.log('\n🚀 Starting load test...\n');
   
   const startTime = Date.now();
   
-  // Create all requests at once (concurrent)
+  // Create requests with optional ramp-up
   const promises = [];
   for (let i = 1; i <= NUM_USERS; i++) {
-    promises.push(joinQueue(i));
+    promises.push(
+      (async () => {
+        if (RAMP_UP_TIME > 0) {
+          await delay(i * RAMP_UP_TIME);
+        }
+        return joinQueue(i);
+      })()
+    );
+    
+    // Show progress every 10 users
+    if (i % 10 === 0) {
+      process.stdout.write(`\r   Queued: ${i}/${NUM_USERS} users...`);
+    }
   }
+  
+  process.stdout.write(`\r   Queued: ${NUM_USERS}/${NUM_USERS} users... ✓\n`);
+  console.log('   Waiting for responses...\n');
   
   // Wait for all requests to complete
   const results = await Promise.all(promises);
@@ -103,9 +156,16 @@ async function runTest() {
   // Analyze results
   const successful = results.filter(r => r.success);
   const failed = results.filter(r => !r.success);
-  const avgDuration = results.reduce((sum, r) => sum + r.duration, 0) / results.length;
-  const minDuration = Math.min(...results.map(r => r.duration));
-  const maxDuration = Math.max(...results.map(r => r.duration));
+  const durations = results.map(r => r.duration).sort((a, b) => a - b);
+  const avgDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+  const minDuration = durations[0];
+  const maxDuration = durations[durations.length - 1];
+  const medianDuration = durations[Math.floor(durations.length / 2)];
+  const p95Duration = durations[Math.floor(durations.length * 0.95)];
+  const p99Duration = durations[Math.floor(durations.length * 0.99)];
+  
+  // Calculate throughput
+  const requestsPerSecond = (NUM_USERS / (totalDuration / 1000)).toFixed(2);
   
   // Group failures by status code
   const failuresByStatus = {};
@@ -114,18 +174,46 @@ async function runTest() {
     failuresByStatus[status] = (failuresByStatus[status] || 0) + 1;
   });
   
+  // Calculate items ordered
+  const totalChai = successful.reduce((sum, r) => {
+    const chai = r.items.find(i => i.name === "Special Chai");
+    return sum + (chai?.qty || 0);
+  }, 0);
+  const totalBun = successful.reduce((sum, r) => {
+    const bun = r.items.find(i => i.name === "Bun");
+    return sum + (bun?.qty || 0);
+  }, 0);
+  const totalTiramisu = successful.reduce((sum, r) => {
+    const tiramisu = r.items.find(i => i.name === "Tiramisu");
+    return sum + (tiramisu?.qty || 0);
+  }, 0);
+  
   // Print summary
   console.log('='.repeat(60));
-  console.log('📊 TEST RESULTS');
+  console.log('📊 LOAD TEST RESULTS');
   console.log('='.repeat(60));
-  console.log(`Total Users: ${NUM_USERS}`);
-  console.log(`✅ Successful: ${successful.length} (${((successful.length / NUM_USERS) * 100).toFixed(2)}%)`);
-  console.log(`❌ Failed: ${failed.length} (${((failed.length / NUM_USERS) * 100).toFixed(2)}%)`);
-  console.log(`\n⏱️  Timing:`);
-  console.log(`   Total Duration: ${totalDuration}ms`);
-  console.log(`   Average Request Time: ${avgDuration.toFixed(2)}ms`);
-  console.log(`   Min Request Time: ${minDuration}ms`);
-  console.log(`   Max Request Time: ${maxDuration}ms`);
+  console.log(`\n📈 Success Rate:`);
+  console.log(`   Total Requests: ${NUM_USERS}`);
+  console.log(`   ✅ Successful: ${successful.length} (${((successful.length / NUM_USERS) * 100).toFixed(2)}%)`);
+  console.log(`   ❌ Failed: ${failed.length} (${((failed.length / NUM_USERS) * 100).toFixed(2)}%)`);
+  console.log(`   🚀 Throughput: ${requestsPerSecond} req/s`);
+  
+  console.log(`\n⏱️  Response Times:`);
+  console.log(`   Total Duration: ${(totalDuration / 1000).toFixed(2)}s`);
+  console.log(`   Average: ${avgDuration.toFixed(2)}ms`);
+  console.log(`   Median: ${medianDuration.toFixed(2)}ms`);
+  console.log(`   Min: ${minDuration}ms`);
+  console.log(`   Max: ${maxDuration}ms`);
+  console.log(`   95th Percentile: ${p95Duration}ms`);
+  console.log(`   99th Percentile: ${p99Duration}ms`);
+  
+  if (successful.length > 0) {
+    console.log(`\n🍵 Items Ordered:`);
+    console.log(`   Special Chai: ${totalChai}`);
+    console.log(`   Bun: ${totalBun}`);
+    console.log(`   Tiramisu: ${totalTiramisu}`);
+    console.log(`   Total Items: ${totalChai + totalBun + totalTiramisu}`);
+  }
   
   if (failed.length > 0) {
     console.log(`\n❌ Failures by Status:`);
@@ -161,6 +249,30 @@ async function runTest() {
     }
   }
   
+  // Performance assessment
+  console.log(`\n💡 Performance Assessment:`);
+  if (avgDuration < 200) {
+    console.log(`   ⚡ Excellent - Average response time under 200ms`);
+  } else if (avgDuration < 500) {
+    console.log(`   ✅ Good - Average response time under 500ms`);
+  } else if (avgDuration < 1000) {
+    console.log(`   ⚠️  Fair - Average response time under 1s`);
+  } else {
+    console.log(`   🔴 Poor - Average response time over 1s`);
+  }
+  
+  if (successful.length / NUM_USERS >= 0.99) {
+    console.log(`   ⚡ Excellent - 99%+ success rate`);
+  } else if (successful.length / NUM_USERS >= 0.95) {
+    console.log(`   ✅ Good - 95%+ success rate`);
+  } else if (successful.length / NUM_USERS >= 0.90) {
+    console.log(`   ⚠️  Fair - 90%+ success rate`);
+  } else {
+    console.log(`   🔴 Poor - Below 90% success rate`);
+  }
+  
+  console.log('='.repeat(60));
+  console.log(`⏰ Completed: ${new Date().toLocaleString()}`);
   console.log('='.repeat(60));
   
   // Return results for potential further analysis
@@ -170,6 +282,10 @@ async function runTest() {
     failed: failed.length,
     totalDuration,
     avgDuration,
+    medianDuration,
+    p95Duration,
+    p99Duration,
+    requestsPerSecond,
     results
   };
 }

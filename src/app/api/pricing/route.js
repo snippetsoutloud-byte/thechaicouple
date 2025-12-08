@@ -9,7 +9,7 @@ export async function GET() {
     const snap = await getDoc(PRICING_DOC);
     if (!snap.exists()) {
       return NextResponse.json(
-        { chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0 },
+        { chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 },
         { status: 200 }
       );
     }
@@ -29,16 +29,17 @@ export async function POST(request) {
     const chaiPrice = Number(body.chaiPrice);
     const bunPrice = Number(body.bunPrice);
     const tiramisuPrice = Number(body.tiramisuPrice);
+    const milkBunPrice = Number(body.milkBunPrice);
 
-    if (Number.isNaN(chaiPrice) || Number.isNaN(bunPrice) || Number.isNaN(tiramisuPrice)) {
+    if (Number.isNaN(chaiPrice) || Number.isNaN(bunPrice) || Number.isNaN(tiramisuPrice) || Number.isNaN(milkBunPrice)) {
       return NextResponse.json(
         { error: "Prices must be numbers" },
         { status: 400 }
       );
     }
 
-    await setDoc(PRICING_DOC, { chaiPrice, bunPrice, tiramisuPrice }, { merge: true });
-    return NextResponse.json({ chaiPrice, bunPrice, tiramisuPrice }, { status: 200 });
+    await setDoc(PRICING_DOC, { chaiPrice, bunPrice, tiramisuPrice, milkBunPrice }, { merge: true });
+    return NextResponse.json({ chaiPrice, bunPrice, tiramisuPrice, milkBunPrice }, { status: 200 });
   } catch (err) {
     console.error("Error in /api/pricing POST:", err);
     return NextResponse.json(

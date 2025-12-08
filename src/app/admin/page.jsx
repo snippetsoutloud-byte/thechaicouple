@@ -143,6 +143,7 @@ function AdminDashboard() {
   const [chaiPrice, setChaiPrice] = useState("");
   const [bunPrice, setBunPrice] = useState("");
   const [tiramisuPrice, setTiramisuPrice] = useState("");
+  const [milkBunPrice, setMilkBunPrice] = useState("");
   const [pricingError, setPricingError] = useState("");
   const [pricingSaving, setPricingSaving] = useState(false);
 
@@ -150,7 +151,7 @@ function AdminDashboard() {
   const [serviceEnd, setServiceEnd] = useState("23:00");
   const [closedMessage, setClosedMessage] = useState("");
   const [inventory, setInventory] = useState(null); // null until loaded
-  const [buffer, setBuffer] = useState({ chai: 10, bun: 10, tiramisu: 10 });
+  const [buffer, setBuffer] = useState({ chai: 10, bun: 10, tiramisu: 10, milkBun: 10 });
   const [inventoryLoaded, setInventoryLoaded] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -159,7 +160,7 @@ function AdminDashboard() {
   const [clearing, setClearing] = useState(false);
   const [paidUpdating, setPaidUpdating] = useState({});
   const [editingTicket, setEditingTicket] = useState(null);
-  const [editQuantities, setEditQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0 });
+  const [editQuantities, setEditQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
   const [editError, setEditError] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [deletingTicket, setDeletingTicket] = useState(null);
@@ -172,7 +173,7 @@ function AdminDashboard() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
   const [addUserName, setAddUserName] = useState("");
-  const [addUserQuantities, setAddUserQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0 });
+  const [addUserQuantities, setAddUserQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
   const [addUserError, setAddUserError] = useState("");
   const [addUserSaving, setAddUserSaving] = useState(false);
 
@@ -226,11 +227,13 @@ function AdminDashboard() {
             chai: payload.settings.inventory?.chai ?? 0,
             bun: payload.settings.inventory?.bun ?? 0,
             tiramisu: payload.settings.inventory?.tiramisu ?? 0,
+            milkBun: payload.settings.inventory?.milkBun ?? 0,
           });
           setBuffer({
             chai: payload.settings.buffer?.chai ?? 10,
             bun: payload.settings.buffer?.bun ?? 10,
             tiramisu: payload.settings.buffer?.tiramisu ?? 10,
+            milkBun: payload.settings.buffer?.milkBun ?? 10,
           });
           setServiceStart(payload.settings.serviceStart || "06:00");
           setServiceEnd(payload.settings.serviceEnd || "23:00");
@@ -283,6 +286,7 @@ function AdminDashboard() {
         setChaiPrice(String(json.chaiPrice ?? ""));
         setBunPrice(String(json.bunPrice ?? ""));
         setTiramisuPrice(String(json.tiramisuPrice ?? ""));
+        setMilkBunPrice(String(json.milkBunPrice ?? ""));
       } catch {
         setPricingError("Failed to load pricing");
       }
@@ -324,11 +328,13 @@ function AdminDashboard() {
           chai: json.inventory?.chai ?? 0,
           bun: json.inventory?.bun ?? 0,
           tiramisu: json.inventory?.tiramisu ?? 0,
+          milkBun: json.inventory?.milkBun ?? 0,
         });
         setBuffer({
           chai: json.buffer?.chai ?? 10,
           bun: json.buffer?.bun ?? 10,
           tiramisu: json.buffer?.tiramisu ?? 10,
+          milkBun: json.buffer?.milkBun ?? 10,
         });
         setInventoryLoaded(true);
       } catch {
@@ -416,10 +422,12 @@ function AdminDashboard() {
     const chaiItem = items.find((item) => item.name === "Special Chai" || item.name === "Irani Chai");
     const bunItem = items.find((item) => item.name === "Bun");
     const tiramisuItem = items.find((item) => item.name === "Tiramisu");
+    const milkBunItem = items.find((item) => item.name === "Milk Bun");
     setEditQuantities({
       chai: chaiItem ? Number(chaiItem.qty) || 0 : 0,
       bun: bunItem ? Number(bunItem.qty) || 0 : 0,
       tiramisu: tiramisuItem ? Number(tiramisuItem.qty) || 0 : 0,
+      milkBun: milkBunItem ? Number(milkBunItem.qty) || 0 : 0,
     });
     // Store a stable reference to the ticket
     setEditingTicket({ ...ticket, id: ticket.id, dateKey: ticket.dateKey });
@@ -434,6 +442,7 @@ function AdminDashboard() {
           chai: json.inventory?.chai ?? 0,
           bun: json.inventory?.bun ?? 0,
           tiramisu: json.inventory?.tiramisu ?? 0,
+          milkBun: json.inventory?.milkBun ?? 0,
         });
       }
     } catch {
@@ -443,7 +452,7 @@ function AdminDashboard() {
 
   function cancelEdit() {
     setEditingTicket(null);
-//    setEditQuantities({ chai: 0, bun: 0, tiramisu: 0 });
+//    setEditQuantities({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
     setEditError("");
   }
 
@@ -456,14 +465,14 @@ function AdminDashboard() {
 
   function handleEditQuantityChange(key, value) {
     const numValue = value === "" ? 0 : Math.max(0, parseInt(value, 10) || 0);
-    const maxValue = key === "chai" ? editAvailability.chai : key === "bun" ? editAvailability.bun : editAvailability.tiramisu;
+    const maxValue = key === "chai" ? editAvailability.chai : key === "bun" ? editAvailability.bun : key === "tiramisu" ? editAvailability.tiramisu : editAvailability.milkBun;
     const clampedValue = Math.min(numValue, maxValue);
     setEditQuantities((prev) => ({ ...prev, [key]: clampedValue }));
   }
 
   function handleAddUserQuantityChange(key, value) {
     const numValue = value === "" ? 0 : Math.max(0, parseInt(value, 10) || 0);
-    const maxValue = key === "chai" ? (inventory?.chai ?? 0) : key === "bun" ? (inventory?.bun ?? 0) : (inventory?.tiramisu ?? 0);
+    const maxValue = key === "chai" ? (inventory?.chai ?? 0) : key === "bun" ? (inventory?.bun ?? 0) : key === "tiramisu" ? (inventory?.tiramisu ?? 0) : (inventory?.milkBun ?? 0);
     const clampedValue = Math.min(numValue, maxValue);
     setAddUserQuantities((prev) => ({ ...prev, [key]: clampedValue }));
   }
@@ -487,6 +496,9 @@ function AdminDashboard() {
       }
       if (editQuantities.tiramisu > 0) {
         items.push({ name: "Tiramisu", qty: editQuantities.tiramisu });
+      }
+      if (editQuantities.milkBun > 0) {
+        items.push({ name: "Milk Bun", qty: editQuantities.milkBun });
       }
 
       if (items.length === 0) {
@@ -515,7 +527,7 @@ function AdminDashboard() {
       // Success - close dialog and reset state
       // The stream will automatically update the queue and inventory
       setEditingTicket(null);
-      setEditQuantities({ chai: 0, bun: 0, tiramisu: 0 });
+      setEditQuantities({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
       setEditSaving(false);
     } catch (err) {
       console.error("Error saving edit:", err);
@@ -607,7 +619,7 @@ function AdminDashboard() {
 
   function openAddUserDialog() {
     setAddUserName("");
-    setAddUserQuantities({ chai: 0, bun: 0, tiramisu: 0 });
+    setAddUserQuantities({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
     setAddUserError("");
     setAddUserDialogOpen(true);
   }
@@ -642,6 +654,9 @@ function AdminDashboard() {
       if (addUserQuantities.tiramisu > 0) {
         items.push({ name: "Tiramisu", qty: addUserQuantities.tiramisu });
       }
+      if (addUserQuantities.milkBun > 0) {
+        items.push({ name: "Milk Bun", qty: addUserQuantities.milkBun });
+      }
 
       if (items.length === 0) {
         setAddUserError("At least one item with quantity is required");
@@ -666,7 +681,7 @@ function AdminDashboard() {
       // The stream will automatically update the queue and inventory
       setAddUserDialogOpen(false);
       setAddUserName("");
-      setAddUserQuantities({ chai: 0, bun: 0, tiramisu: 0 });
+      setAddUserQuantities({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
       setAddUserSaving(false);
     } catch (err) {
       console.error("Error adding user:", err);
@@ -687,6 +702,7 @@ function AdminDashboard() {
           chaiPrice: Number(chaiPrice),
           bunPrice: Number(bunPrice),
           tiramisuPrice: Number(tiramisuPrice),
+          milkBunPrice: Number(milkBunPrice),
         }),
       });
       const json = await res.json();
@@ -698,6 +714,7 @@ function AdminDashboard() {
       setChaiPrice(String(json.chaiPrice ?? ""));
       setBunPrice(String(json.bunPrice ?? ""));
       setTiramisuPrice(String(json.tiramisuPrice ?? ""));
+      setMilkBunPrice(String(json.milkBunPrice ?? ""));
       setPricingSaving(false);
     } catch {
       setPricingError("Failed to save pricing");
@@ -754,8 +771,8 @@ function AdminDashboard() {
         setInventorySaving(false);
         return;
       }
-      setInventory(json.inventory || { chai: 0, bun: 0, tiramisu: 0 });
-      setBuffer(json.buffer || { chai: 10, bun: 10, tiramisu: 10 });
+      setInventory(json.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
+      setBuffer(json.buffer || { chai: 10, bun: 10, tiramisu: 10, milkBun: 10 });
       setInventorySaving(false);
     } catch {
       setSettingsError("Failed to save inventory");
@@ -766,22 +783,25 @@ function AdminDashboard() {
   // Calculate available inventory for edit modal (current inventory + items in the order being edited)
   const editAvailability = useMemo(() => {
     if (!editingTicket) {
-      return { chai: 0, bun: 0, tiramisu: 0 };
+      return { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
     }
     // Ensure inventory is an object with numeric values
-    const currentInventory = inventory || { chai: 0, bun: 0, tiramisu: 0 };
+    const currentInventory = inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
     const currentChaiQty = Number(editingTicket.items?.find((item) => item.name === "Special Chai" || item.name === "Irani Chai")?.qty || 0);
     const currentBunQty = Number(editingTicket.items?.find((item) => item.name === "Bun")?.qty || 0);
     const currentTiramisuQty = Number(editingTicket.items?.find((item) => item.name === "Tiramisu")?.qty || 0);
+    const currentMilkBunQty = Number(editingTicket.items?.find((item) => item.name === "Milk Bun")?.qty || 0);
     
     const chaiInv = Number(currentInventory.chai) || 0;
     const bunInv = Number(currentInventory.bun) || 0;
     const tiramisuInv = Number(currentInventory.tiramisu) || 0;
+    const milkBunInv = Number(currentInventory.milkBun) || 0;
     
     return {
       chai: chaiInv + currentChaiQty,
       bun: bunInv + currentBunQty,
       tiramisu: tiramisuInv + currentTiramisuQty,
+      milkBun: milkBunInv + currentMilkBunQty,
     };
   }, [editingTicket, inventory]);
 
@@ -838,12 +858,14 @@ function AdminDashboard() {
     let bunCount = 0;
     let tiramisuCount = 0;
     let revenue = 0;
+    let milkBunCount = 0;
     readyTickets.forEach((ticket) => {
       ticket.items?.forEach((item) => {
         if (!item.qty) return;
         if (item.name === "Special Chai" || item.name === "Irani Chai") chaiCount += item.qty;
         if (item.name === "Bun") bunCount += item.qty;
         if (item.name === "Tiramisu") tiramisuCount += item.qty;
+        if (item.name === "Milk Bun") milkBunCount += item.qty;
       });
       // Only include paid tickets in revenue
       if (ticket.paid) {
@@ -851,11 +873,12 @@ function AdminDashboard() {
           ticket,
           Number(chaiPrice) || 0,
           Number(bunPrice) || 0,
-          Number(tiramisuPrice) || 0
+          Number(tiramisuPrice) || 0,
+          Number(milkBunPrice) || 0
         );
       }
     });
-    return { chaiCount, bunCount, tiramisuCount, revenue };
+    return { chaiCount, bunCount, tiramisuCount, milkBunCount, revenue };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readyTickets]);
 
@@ -948,6 +971,11 @@ function AdminDashboard() {
                           variant={(inventory?.tiramisu ?? 0) <= 0 ? "destructive" : (inventory?.tiramisu ?? 0) < (buffer.tiramisu ?? 10) ? "default" : "secondary"}
                         >
                           Tiramisu: {inventory?.tiramisu ?? 0}
+                        </Badge>
+                        <Badge 
+                          variant={(inventory?.milkBun ?? 0) <= 0 ? "destructive" : (inventory?.milkBun ?? 0) < (buffer.milkBun ?? 10) ? "default" : "secondary"}
+                        >
+                          Milk Bun: {inventory?.milkBun ?? 0}
                         </Badge>
                       </>
                     )}
@@ -1226,6 +1254,39 @@ function AdminDashboard() {
                         </Button>
                       </div>
                     </div>
+                    <div className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3">
+                      <div>
+                        <p className="font-medium">Milk Bun</p>
+                        <p className="text-xs text-muted-foreground">Available: {editAvailability.milkBun}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => updateEditQuantity("milkBun", -1)}
+                          disabled={editQuantities.milkBun === 0}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={editAvailability.milkBun}
+                          value={editQuantities.milkBun}
+                          onChange={(e) => handleEditQuantityChange("milkBun", e.target.value)}
+                          className="w-16 text-center text-lg font-semibold"
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          onClick={() => updateEditQuantity("milkBun", 1)}
+                          disabled={editQuantities.milkBun >= editAvailability.milkBun}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <DialogFooter>
@@ -1370,6 +1431,39 @@ function AdminDashboard() {
                         </Button>
                       </div>
                     </div>
+                    <div className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3">
+                      <div>
+                        <p className="font-medium">Milk Bun</p>
+                        <p className="text-xs text-muted-foreground">Available: {inventory?.milkBun ?? 0}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => updateAddUserQuantity("milkBun", -1)}
+                          disabled={addUserQuantities.milkBun === 0}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={inventory?.milkBun ?? 0}
+                          value={addUserQuantities.milkBun}
+                          onChange={(e) => handleAddUserQuantityChange("milkBun", e.target.value)}
+                          className="w-16 text-center text-lg font-semibold"
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          onClick={() => updateAddUserQuantity("milkBun", 1)}
+                          disabled={addUserQuantities.milkBun >= (inventory?.milkBun ?? 0)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                   {addUserError && (
                     <Alert variant="destructive">
@@ -1383,7 +1477,7 @@ function AdminDashboard() {
                     onClick={() => {
                       setAddUserDialogOpen(false);
                       setAddUserName("");
-                      setAddUserQuantities({ chai: 0, bun: 0, tiramisu: 0 });
+                      setAddUserQuantities({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
                       setAddUserError("");
                     }}
                     disabled={addUserSaving}
@@ -1452,7 +1546,8 @@ function AdminDashboard() {
                             selectedTicket,
                             Number(chaiPrice) || 0,
                             Number(bunPrice) || 0,
-                            Number(tiramisuPrice) || 0
+                            Number(tiramisuPrice) || 0,
+                            Number(milkBunPrice) || 0
                           ).toFixed(2)}
                         </p>
                       </div>
@@ -1588,10 +1683,11 @@ function AdminDashboard() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
                   <SummaryCard label="Served chai" value={readySummary.chaiCount} />
                   <SummaryCard label="Served buns" value={readySummary.bunCount} />
                   <SummaryCard label="Served tiramisu" value={readySummary.tiramisuCount} />
+                  <SummaryCard label="Served milk buns" value={readySummary.milkBunCount} />
                   <SummaryCard
                     label="Revenue"
                     value={currency.format(readySummary.revenue || 0)}
@@ -1656,7 +1752,7 @@ function AdminDashboard() {
                             </Button>
                           </TableCell>
                           <TableCell className="text-right font-semibold">
-                            {currency.format(ticketTotal(ticket, Number(chaiPrice) || 0, Number(bunPrice) || 0, Number(tiramisuPrice) || 0))}
+                            {currency.format(ticketTotal(ticket, Number(chaiPrice) || 0, Number(bunPrice) || 0, Number(tiramisuPrice) || 0, Number(milkBunPrice) || 0))}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
@@ -1723,7 +1819,7 @@ function AdminDashboard() {
                     <div className="flex justify-between border-t pt-4">
                       <span className="text-base font-semibold">Total:</span>
                       <span className="text-base font-bold">
-                        {currency.format(ticketTotal(viewingTicket, Number(chaiPrice) || 0, Number(bunPrice) || 0, Number(tiramisuPrice) || 0))}
+                        {currency.format(ticketTotal(viewingTicket, Number(chaiPrice) || 0, Number(bunPrice) || 0, Number(tiramisuPrice) || 0, Number(milkBunPrice) || 0))}
                       </span>
                     </div>
                     <div className="flex items-center justify-between border-t pt-4">
@@ -1914,6 +2010,31 @@ function AdminDashboard() {
                       </p>
                     </div>
                   </div>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="milkBunInventory">Milk Bun Inventory</Label>
+                      <Input
+                        id="milkBunInventory"
+                        type="number"
+                        min={0}
+                        value={inventory?.milkBun ?? 0}
+                        onChange={(e) => setInventory((prev) => ({ ...(prev || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 }), milkBun: Number(e.target.value) || 0 }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="milkBunBuffer">Milk Bun Buffer</Label>
+                      <Input
+                        id="milkBunBuffer"
+                        type="number"
+                        min={0}
+                        value={buffer.milkBun ?? 10}
+                        onChange={(e) => setBuffer((prev) => ({ ...prev, milkBun: Number(e.target.value) || 0 }))}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Warning will show when inventory falls below this level
+                      </p>
+                    </div>
+                  </div>
                   <div className="md:col-span-2">
                     <Button type="submit" disabled={inventorySaving}>
                       {inventorySaving ? "Saving..." : "Save inventory settings"}
@@ -1927,45 +2048,57 @@ function AdminDashboard() {
               <CardHeader>
                 <CardTitle>Pricing</CardTitle>
                 <CardDescription>
-                  Set the prices for Special Chai, Bun Maska, and Tiramisu.
+                  Set the prices for Special Chai, Bun Maska, Tiramisu, and Milk Bun.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form
                   onSubmit={savePricing}
-                  className="grid gap-4 md:grid-cols-3"
+                  className="space-y-4"
                 >
-                  <div className="space-y-2">
-                    <Label htmlFor="chaiPrice">Special Chai price</Label>
-                    <Input
-                      id="chaiPrice"
-                      type="number"
-                      min={0}
-                      value={chaiPrice}
-                      onChange={(e) => setChaiPrice(e.target.value)}
-                    />
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="chaiPrice">Special Chai price</Label>
+                      <Input
+                        id="chaiPrice"
+                        type="number"
+                        min={0}
+                        value={chaiPrice}
+                        onChange={(e) => setChaiPrice(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bunPrice">Bun price</Label>
+                      <Input
+                        id="bunPrice"
+                        type="number"
+                        min={0}
+                        value={bunPrice}
+                        onChange={(e) => setBunPrice(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tiramisuPrice">Tiramisu price</Label>
+                      <Input
+                        id="tiramisuPrice"
+                        type="number"
+                        min={0}
+                        value={tiramisuPrice}
+                        onChange={(e) => setTiramisuPrice(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="milkBunPrice">Milk Bun price</Label>
+                      <Input
+                        id="milkBunPrice"
+                        type="number"
+                        min={0}
+                        value={milkBunPrice}
+                        onChange={(e) => setMilkBunPrice(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bunPrice">Bun price</Label>
-                    <Input
-                      id="bunPrice"
-                      type="number"
-                      min={0}
-                      value={bunPrice}
-                      onChange={(e) => setBunPrice(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="tiramisuPrice">Tiramisu price</Label>
-                    <Input
-                      id="tiramisuPrice"
-                      type="number"
-                      min={0}
-                      value={tiramisuPrice}
-                      onChange={(e) => setTiramisuPrice(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col justify-end gap-2">
+                  <div>
                     <Button type="submit" disabled={pricingSaving}>
                       {pricingSaving ? "Saving..." : "Save prices"}
                     </Button>
@@ -2064,10 +2197,12 @@ const ITEM_CODE_STYLES = {
   C: "bg-amber-100 text-amber-900",
   B: "bg-orange-100 text-orange-900",
   T: "bg-rose-100 text-rose-900",
+  M: "bg-purple-100 text-purple-900",
 };
 
 function getItemCode(name = "") {
   if (name.toLowerCase().includes("tiramisu")) return "T";
+  if (name.toLowerCase().includes("milk bun")) return "M";
   if (name.toLowerCase().includes("bun")) return "B";
   return "C";
 }
@@ -2095,7 +2230,7 @@ function formatOrder(items) {
   );
 }
 
-function ticketTotal(ticket, fallbackChai = 0, fallbackBun = 0, fallbackTiramisu = 0) {
+function ticketTotal(ticket, fallbackChai = 0, fallbackBun = 0, fallbackTiramisu = 0, fallbackMilkBun = 0) {
   if (typeof ticket.total === "number") {
     return ticket.total;
   }
@@ -2107,6 +2242,8 @@ function ticketTotal(ticket, fallbackChai = 0, fallbackBun = 0, fallbackTiramisu
       price = fallbackChai;
     } else if (item.name === "Tiramisu") {
       price = fallbackTiramisu;
+    } else if (item.name === "Milk Bun") {
+      price = fallbackMilkBun;
     }
     return sum + (price || 0) * (item.qty || 0);
   }, 0);

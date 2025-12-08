@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { db, getTodayKey, firestoreHelpers } from "@/lib/firebase";
-import { isChai, isBun, isTiramisu } from "@/lib/item-names";
-import { logFirestoreRead, logFirestoreWrite } from "@/lib/firebase-monitor";
+import { isChai, isBun, isTiramisu, isMilkBun } from "@/lib/item-names";
+//import { logFirestoreRead, logFirestoreWrite } from "@/lib/firebase-monitor";
 
 const {
   doc,
   collection,
   runTransaction,
-  setDoc,
-  updateDoc,
-  getDoc,
   getDocs,
   query,
   where,
@@ -79,6 +76,7 @@ export async function POST(request) {
     let chaiDecrement = 0;
     let bunDecrement = 0;
     let tiramisuDecrement = 0;
+    let milkBunDecrement = 0;
     
     items.forEach((item) => {
       const qty = Number(item.qty) || 0;
@@ -88,6 +86,8 @@ export async function POST(request) {
         bunDecrement += qty;
       } else if (isTiramisu(item.name)) {
         tiramisuDecrement += qty;
+      } else if (isMilkBun(item.name)) {
+        milkBunDecrement += qty;
       }
     });
 
@@ -109,12 +109,13 @@ export async function POST(request) {
       }
 
       const currentSettings = settingsSnap.data();
-      const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+      const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
 
       // Calculate new inventory (prevent negative)
       const newChaiInventory = Math.max(0, (currentInventory.chai || 0) - chaiDecrement);
       const newBunInventory = Math.max(0, (currentInventory.bun || 0) - bunDecrement);
       const newTiramisuInventory = Math.max(0, (currentInventory.tiramisu || 0) - tiramisuDecrement);
+      const newMilkBunInventory = Math.max(0, (currentInventory.milkBun || 0) - milkBunDecrement);
 
       // Update queue day document
       tx.set(
@@ -148,6 +149,7 @@ export async function POST(request) {
         "inventory.chai": newChaiInventory,
         "inventory.bun": newBunInventory,
         "inventory.tiramisu": newTiramisuInventory,
+        "inventory.milkBun": newMilkBunInventory,
         updatedAt: serverTimestamp(),
       });
      // logFirestoreWrite(1, { endpoint: '/api/join', document: 'settings' });

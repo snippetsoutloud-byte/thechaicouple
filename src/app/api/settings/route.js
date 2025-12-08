@@ -14,11 +14,13 @@ const DEFAULT_SETTINGS = {
     chai: 0,
     bun: 0,
     tiramisu: 0,
+    milkBun: 0,
   },
   buffer: {
     chai: 10,
     bun: 10,
     tiramisu: 10,
+    milkBun: 10,
   },
 };
 
@@ -67,6 +69,7 @@ export async function POST(request) {
       chai: body.inventory?.chai != null ? Number(body.inventory.chai) || 0 : (existingData.inventory?.chai ?? DEFAULT_SETTINGS.inventory.chai),
       bun: body.inventory?.bun != null ? Number(body.inventory.bun) || 0 : (existingData.inventory?.bun ?? DEFAULT_SETTINGS.inventory.bun),
       tiramisu: body.inventory?.tiramisu != null ? Number(body.inventory.tiramisu) || 0 : (existingData.inventory?.tiramisu ?? DEFAULT_SETTINGS.inventory.tiramisu),
+      milkBun: body.inventory?.milkBun != null ? Number(body.inventory.milkBun) || 0 : (existingData.inventory?.milkBun ?? DEFAULT_SETTINGS.inventory.milkBun),
     };
     
     // Handle buffer: use provided value, fallback to existing, then default
@@ -74,6 +77,7 @@ export async function POST(request) {
       chai: body.buffer?.chai != null ? Number(body.buffer.chai) || 0 : (existingData.buffer?.chai ?? DEFAULT_SETTINGS.buffer.chai),
       bun: body.buffer?.bun != null ? Number(body.buffer.bun) || 0 : (existingData.buffer?.bun ?? DEFAULT_SETTINGS.buffer.bun),
       tiramisu: body.buffer?.tiramisu != null ? Number(body.buffer.tiramisu) || 0 : (existingData.buffer?.tiramisu ?? DEFAULT_SETTINGS.buffer.tiramisu),
+      milkBun: body.buffer?.milkBun != null ? Number(body.buffer.milkBun) || 0 : (existingData.buffer?.milkBun ?? DEFAULT_SETTINGS.buffer.milkBun),
     };
 
     await setDoc(

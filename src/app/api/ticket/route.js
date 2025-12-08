@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, firestoreHelpers } from "@/lib/firebase";
-import { ITEM_NAMES, isChai, isBun, isTiramisu } from "@/lib/item-names";
+import { ITEM_NAMES, isChai, isBun, isTiramisu, isMilkBun } from "@/lib/item-names";
 import { logFirestoreRead, logFirestoreWrite, logFirestoreDelete } from "@/lib/firebase-monitor";
 
 const { doc, collection, deleteDoc, getDoc, setDoc, updateDoc, serverTimestamp, runTransaction } = firestoreHelpers;
@@ -54,12 +54,13 @@ export async function DELETE(request) {
         // Restore inventory if needed
         if (shouldRestoreInventory && settingsSnap && settingsSnap.exists()) {
           const currentSettings = settingsSnap.data();
-          const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+          const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
           
           // Calculate inventory to restore
           let chaiRestore = 0;
           let bunRestore = 0;
           let tiramisuRestore = 0;
+          let milkBunRestore = 0;
           
           items.forEach((item) => {
             const qty = Number(item.qty) || 0;
@@ -69,6 +70,8 @@ export async function DELETE(request) {
               bunRestore += qty;
             } else if (isTiramisu(item.name)) {
               tiramisuRestore += qty;
+            } else if (isMilkBun(item.name)) {
+              milkBunRestore += qty;
             }
           });
 
@@ -77,6 +80,7 @@ export async function DELETE(request) {
             "inventory.chai": (currentInventory.chai || 0) + chaiRestore,
             "inventory.bun": (currentInventory.bun || 0) + bunRestore,
             "inventory.tiramisu": (currentInventory.tiramisu || 0) + tiramisuRestore,
+            "inventory.milkBun": (currentInventory.milkBun || 0) + milkBunRestore,
             updatedAt: serverTimestamp(),
           });
           logFirestoreWrite(1, { endpoint: '/api/ticket', document: 'settings', method: 'DELETE' });
@@ -121,6 +125,7 @@ export async function PATCH(request) {
     let newChaiQty = 0;
     let newBunQty = 0;
     let newTiramisuQty = 0;
+    let newMilkBunQty = 0;
     items.forEach((item) => {
       const qty = Number(item.qty) || 0;
       if (isChai(item.name)) {
@@ -129,6 +134,8 @@ export async function PATCH(request) {
         newBunQty += qty;
       } else if (isTiramisu(item.name)) {
         newTiramisuQty += qty;
+      } else if (isMilkBun(item.name)) {
+        newMilkBunQty += qty;
       }
     });
 
@@ -153,6 +160,7 @@ export async function PATCH(request) {
         let oldChaiQty = 0;
         let oldBunQty = 0;
         let oldTiramisuQty = 0;
+        let oldMilkBunQty = 0;
         oldItems.forEach((item) => {
           const qty = Number(item.qty) || 0;
           if (isChai(item.name)) {
@@ -161,6 +169,8 @@ export async function PATCH(request) {
             oldBunQty += qty;
           } else if (isTiramisu(item.name)) {
             oldTiramisuQty += qty;
+          } else if (isMilkBun(item.name)) {
+            oldMilkBunQty += qty;
           }
         });
 
@@ -172,21 +182,23 @@ export async function PATCH(request) {
         }
 
         const currentSettings = settingsSnap.data();
-        const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+        const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
 
         // Calculate net change (positive = need more, negative = need less)
         const chaiChange = newChaiQty - oldChaiQty;
         const bunChange = newBunQty - oldBunQty;
         const tiramisuChange = newTiramisuQty - oldTiramisuQty;
+        const milkBunChange = newMilkBunQty - oldMilkBunQty;
 
         // Calculate new inventory: current + old (restore) - new (decrement)
         // This ensures we restore what was taken and then take what's needed
         const newChaiInventory = (currentInventory.chai || 0) + oldChaiQty - newChaiQty;
         const newBunInventory = (currentInventory.bun || 0) + oldBunQty - newBunQty;
         const newTiramisuInventory = (currentInventory.tiramisu || 0) + oldTiramisuQty - newTiramisuQty;
+        const newMilkBunInventory = (currentInventory.milkBun || 0) + oldMilkBunQty - newMilkBunQty;
 
         // Check if new quantities exceed available inventory
-        if (newChaiInventory < 0 || newBunInventory < 0 || newTiramisuInventory < 0) {
+        if (newChaiInventory < 0 || newBunInventory < 0 || newTiramisuInventory < 0 || newMilkBunInventory < 0) {
           throw new Error("Stock exceeded");
         }
 
@@ -202,6 +214,7 @@ export async function PATCH(request) {
           "inventory.chai": newChaiInventory,
           "inventory.bun": newBunInventory,
           "inventory.tiramisu": newTiramisuInventory,
+          "inventory.milkBun": newMilkBunInventory,
           updatedAt: serverTimestamp(),
         });
         logFirestoreWrite(1, { endpoint: '/api/ticket', document: 'settings', method: 'PATCH' });

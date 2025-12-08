@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, getTodayKey, firestoreHelpers } from "@/lib/firebase";
-import { isChai, isBun, isTiramisu } from "@/lib/item-names";
+import { isChai, isBun, isTiramisu, isMilkBun } from "@/lib/item-names";
 import { logFirestoreRead, logFirestoreWrite, logFirestoreDelete } from "@/lib/firebase-monitor";
 
 const {
@@ -62,6 +62,7 @@ export async function DELETE() {
     let totalChaiRestore = 0;
     let totalBunRestore = 0;
     let totalTiramisuRestore = 0;
+    let totalMilkBunRestore = 0;
     const ticketRefsToDelete = [];
 
     snapshot.forEach((docSnap) => {
@@ -78,6 +79,8 @@ export async function DELETE() {
             totalBunRestore += qty;
           } else if (isTiramisu(item.name)) {
             totalTiramisuRestore += qty;
+          } else if (isMilkBun(item.name)) {
+            totalMilkBunRestore += qty;
           }
         });
       }
@@ -97,7 +100,7 @@ export async function DELETE() {
         }
 
         const currentSettings = settingsSnap.data();
-        const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+        const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
 
         // Delete all tickets
         ticketRefsToDelete.forEach(ref => tx.delete(ref));
@@ -108,6 +111,7 @@ export async function DELETE() {
           "inventory.chai": (currentInventory.chai || 0) + totalChaiRestore,
           "inventory.bun": (currentInventory.bun || 0) + totalBunRestore,
           "inventory.tiramisu": (currentInventory.tiramisu || 0) + totalTiramisuRestore,
+          "inventory.milkBun": (currentInventory.milkBun || 0) + totalMilkBunRestore,
           updatedAt: serverTimestamp(),
         });
         logFirestoreWrite(1, { endpoint: '/api/queue', document: 'settings', method: 'DELETE' });
@@ -121,7 +125,8 @@ export async function DELETE() {
       restored: {
         chai: totalChaiRestore,
         bun: totalBunRestore,
-        tiramisu: totalTiramisuRestore
+        tiramisu: totalTiramisuRestore,
+        milkBun: totalMilkBunRestore
       }
     }, { status: 200 });
   } catch (err) {

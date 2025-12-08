@@ -31,7 +31,7 @@ export default function ServedPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0 });
+  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 });
 
   useEffect(() => {
     if (!id) return;
@@ -84,6 +84,7 @@ export default function ServedPage() {
           chaiPrice: Number(data.chaiPrice) || 0,
           bunPrice: Number(data.bunPrice) || 0,
           tiramisuPrice: Number(data.tiramisuPrice) || 0,
+          milkBunPrice: Number(data.milkBunPrice) || 0,
         };
         if (!ignore) {
           setPricing(next);
@@ -110,6 +111,8 @@ export default function ServedPage() {
           price = pricing.chaiPrice;
         } else if (item.name === "Tiramisu") {
           price = pricing.tiramisuPrice;
+        } else if (item.name === "Milk Bun") {
+          price = pricing.milkBunPrice;
         }
         const subtotal = (price || 0) * item.qty;
         return { name: item.name, qty: item.qty, price, subtotal };

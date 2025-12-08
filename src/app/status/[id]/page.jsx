@@ -40,7 +40,7 @@ export default function StatusPage() {
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0 });
+  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 });
   const [streamSettings, setStreamSettings] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("connecting"); // "connected", "disconnected", "error", "connecting"
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
@@ -232,6 +232,7 @@ export default function StatusPage() {
           chaiPrice: Number(data.chaiPrice) || 0,
           bunPrice: Number(data.bunPrice) || 0,
           tiramisuPrice: Number(data.tiramisuPrice) || 0,
+          milkBunPrice: Number(data.milkBunPrice) || 0,
         };
         if (!ignore) {
           setPricing(next);
@@ -258,6 +259,8 @@ export default function StatusPage() {
           price = pricing.chaiPrice;
         } else if (item.name === "Tiramisu") {
           price = pricing.tiramisuPrice;
+        } else if (item.name === "Milk Bun") {
+          price = pricing.milkBunPrice;
         }
         const subtotal = (price || 0) * item.qty;
         return { name: item.name, qty: item.qty, price, subtotal };

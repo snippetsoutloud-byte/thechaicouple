@@ -25,6 +25,7 @@ const MENU = [
   { key: "chai", label: "Special Chai" },
   { key: "bun", label: "Bun" },
   { key: "tiramisu", label: "Tiramisu" },
+  { key: "milkBun", label: "Milk Bun" },
 ];
 
 const currency = new Intl.NumberFormat("en-IN", {
@@ -36,8 +37,8 @@ const currency = new Intl.NumberFormat("en-IN", {
 export default function QueuePage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [quantities, setQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0 });
-  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0 });
+  const [quantities, setQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
+  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [settings, setSettings] = useState(null);
@@ -82,6 +83,7 @@ export default function QueuePage() {
           chaiPrice: Number(data.chaiPrice) || 0,
           bunPrice: Number(data.bunPrice) || 0,
           tiramisuPrice: Number(data.tiramisuPrice) || 0,
+          milkBunPrice: Number(data.milkBunPrice) || 0,
         };
         if (!ignore) {
           setPricing(next);
@@ -113,11 +115,12 @@ export default function QueuePage() {
           
           // Auto-adjust quantities if inventory drops below selected quantities
           setQuantities((prev) => {
-            const newInventory = payload.settings.inventory || { chai: 0, bun: 0, tiramisu: 0 };
+            const newInventory = payload.settings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
             return {
               chai: Math.min(prev.chai || 0, newInventory.chai || 0),
               bun: Math.min(prev.bun || 0, newInventory.bun || 0),
               tiramisu: Math.min(prev.tiramisu || 0, newInventory.tiramisu || 0),
+              milkBun: Math.min(prev.milkBun || 0, newInventory.milkBun || 0),
             };
           });
         }
@@ -148,7 +151,7 @@ export default function QueuePage() {
         name: item.label,
         key: item.key,
         qty: quantities[item.key] || 0,
-        price: item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : pricing.tiramisuPrice,
+        price: item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : item.key === "tiramisu" ? pricing.tiramisuPrice : pricing.milkBunPrice,
       })).filter((item) => item.qty > 0),
     [quantities, pricing]
   );
@@ -177,14 +180,15 @@ export default function QueuePage() {
   }, [settings]);
 
   // Calculate availability from inventory (inventory > 0 means available)
-  const inventory = settings?.inventory || { chai: 0, bun: 0, tiramisu: 0 };
-  const buffer = settings?.buffer || { chai: 10, bun: 10, tiramisu: 10 };
+  const inventory = settings?.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
+  const buffer = settings?.buffer || { chai: 10, bun: 10, tiramisu: 10, milkBun: 10 };
   const availability = {
     chai: (inventory.chai || 0) > 0,
     bun: (inventory.bun || 0) > 0,
     tiramisu: (inventory.tiramisu || 0) > 0,
+    milkBun: (inventory.milkBun || 0) > 0,
   };
-  const hasAnyAvailable = availability.chai || availability.bun || availability.tiramisu;
+  const hasAnyAvailable = availability.chai || availability.bun || availability.tiramisu || availability.milkBun;
   const queueOpen = isWithinServiceWindow && hasAnyAvailable;
 
   const canSubmit =
@@ -306,7 +310,7 @@ export default function QueuePage() {
               <div className="space-y-3">
                 {MENU.map((item) => {
                   const price =
-                    item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : pricing.tiramisuPrice;
+                    item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : item.key === "tiramisu" ? pricing.tiramisuPrice : pricing.milkBunPrice;
                   const qty = quantities[item.key] || 0;
                   const available = availability[item.key] ?? false;
                   // Only calculate inventory when settings are loaded
