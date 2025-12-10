@@ -1697,7 +1697,7 @@ function AdminDashboard() {
               <CardContent className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
                   <SummaryCard label="Served chai" value={readySummary.chaiCount} />
-                  <SummaryCard label="Served buns" value={readySummary.bunCount} />
+                  <SummaryCard label="Served bun maska" value={readySummary.bunCount} />
                   <SummaryCard label="Served tiramisu" value={readySummary.tiramisuCount} />
                   <SummaryCard label="Served premium milk buns" value={readySummary.milkBunCount} />
                   <SummaryCard
