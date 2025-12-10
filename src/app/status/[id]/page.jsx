@@ -7,6 +7,7 @@ import { LogOut, RotateCw } from "lucide-react";
 
 import { getTodayKey } from "@/lib/firebase";
 import { getCachedPricing, setCachedPricing } from "@/lib/pricing-cache";
+import { isChai, isTiramisu, isBun, isMilkBun } from "@/lib/item-names";
 import {
   Card,
   CardContent,
@@ -254,12 +255,11 @@ export default function StatusPage() {
       .filter((item) => item.qty > 0)
       .map((item) => {
         let price = pricing.bunPrice;
-        // Handle both "Special Chai" and legacy "Irani Chai"
-        if (item.name === "Special Chai" || item.name === "Irani Chai") {
+        if (isChai(item.name)) {
           price = pricing.chaiPrice;
-        } else if (item.name === "Tiramisu") {
+        } else if (isTiramisu(item.name)) {
           price = pricing.tiramisuPrice;
-        } else if (item.name === "Milk Bun") {
+        } else if (isMilkBun(item.name)) {
           price = pricing.milkBunPrice;
         }
         const subtotal = (price || 0) * item.qty;
@@ -301,8 +301,8 @@ export default function StatusPage() {
     const availability = streamSettings.availability;
     return data.items.some((item) => {
       if (item.qty <= 0) return false;
-      if ((item.name === "Special Chai" || item.name === "Irani Chai") && !availability.chai) return true;
-      if (item.name === "Bun" && !availability.bun) return true;
+      if (isChai(item.name) && !availability.chai) return true;
+      if (isBun(item.name) && !availability.bun) return true;
       return false;
     });
   }, [data, streamSettings]);
@@ -425,9 +425,9 @@ export default function StatusPage() {
                         {orderSummary.map((item) => {
                           const isItemSoldOut =
                             streamSettings?.availability &&
-                            (((item.name === "Special Chai" || item.name === "Irani Chai") &&
+                            ((isChai(item.name) &&
                               !streamSettings.availability.chai) ||
-                              (item.name === "Bun" &&
+                              (isBun(item.name) &&
                                 !streamSettings.availability.bun));
                           return (
                             <div

@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Minus, Plus, Edit, Trash2, Loader2, RotateCw, UserPlus } from "lucide-react";
+import { ITEM_NAMES, isChai, isBun, isTiramisu, isMilkBun } from "@/lib/item-names";
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -419,10 +420,10 @@ function AdminDashboard() {
 
   async function openEditDialog(ticket) {
     const items = Array.isArray(ticket.items) ? ticket.items : [];
-    const chaiItem = items.find((item) => item.name === "Special Chai" || item.name === "Irani Chai");
-    const bunItem = items.find((item) => item.name === "Bun");
-    const tiramisuItem = items.find((item) => item.name === "Tiramisu");
-    const milkBunItem = items.find((item) => item.name === "Milk Bun");
+    const chaiItem = items.find((item) => isChai(item.name));
+    const bunItem = items.find((item) => isBun(item.name));
+    const tiramisuItem = items.find((item) => isTiramisu(item.name));
+    const milkBunItem = items.find((item) => isMilkBun(item.name));
     setEditQuantities({
       chai: chaiItem ? Number(chaiItem.qty) || 0 : 0,
       bun: bunItem ? Number(bunItem.qty) || 0 : 0,
@@ -487,18 +488,20 @@ function AdminDashboard() {
       // Build items array
       const items = [];
       if (editQuantities.chai > 0) {
-        // Use the current item name if it exists, otherwise use "Special Chai"
-        const existingChaiName = editingTicket.items?.find((item) => item.name === "Special Chai" || item.name === "Irani Chai")?.name || "Special Chai";
+        // Preserve existing chai display name if present (handles legacy "Irani Chai")
+        const existingChaiName =
+          editingTicket.items?.find((item) => isChai(item.name))?.name ||
+          ITEM_NAMES.CHAI;
         items.push({ name: existingChaiName, qty: editQuantities.chai });
       }
       if (editQuantities.bun > 0) {
-        items.push({ name: "Bun", qty: editQuantities.bun });
+        items.push({ name: ITEM_NAMES.BUN, qty: editQuantities.bun });
       }
       if (editQuantities.tiramisu > 0) {
-        items.push({ name: "Tiramisu", qty: editQuantities.tiramisu });
+        items.push({ name: ITEM_NAMES.TIRAMISU, qty: editQuantities.tiramisu });
       }
       if (editQuantities.milkBun > 0) {
-        items.push({ name: "Milk Bun", qty: editQuantities.milkBun });
+        items.push({ name: ITEM_NAMES.MILK_BUN, qty: editQuantities.milkBun });
       }
 
       if (items.length === 0) {
@@ -646,16 +649,22 @@ function AdminDashboard() {
       // Build items array
       const items = [];
       if (addUserQuantities.chai > 0) {
-        items.push({ name: "Special Chai", qty: addUserQuantities.chai });
+        items.push({ name: ITEM_NAMES.CHAI, qty: addUserQuantities.chai });
       }
       if (addUserQuantities.bun > 0) {
-        items.push({ name: "Bun", qty: addUserQuantities.bun });
+        items.push({ name: ITEM_NAMES.BUN, qty: addUserQuantities.bun });
       }
       if (addUserQuantities.tiramisu > 0) {
-        items.push({ name: "Tiramisu", qty: addUserQuantities.tiramisu });
+        items.push({
+          name: ITEM_NAMES.TIRAMISU,
+          qty: addUserQuantities.tiramisu,
+        });
       }
       if (addUserQuantities.milkBun > 0) {
-        items.push({ name: "Milk Bun", qty: addUserQuantities.milkBun });
+        items.push({
+          name: ITEM_NAMES.MILK_BUN,
+          qty: addUserQuantities.milkBun,
+        });
       }
 
       if (items.length === 0) {
@@ -787,10 +796,10 @@ function AdminDashboard() {
     }
     // Ensure inventory is an object with numeric values
     const currentInventory = inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
-    const currentChaiQty = Number(editingTicket.items?.find((item) => item.name === "Special Chai" || item.name === "Irani Chai")?.qty || 0);
-    const currentBunQty = Number(editingTicket.items?.find((item) => item.name === "Bun")?.qty || 0);
-    const currentTiramisuQty = Number(editingTicket.items?.find((item) => item.name === "Tiramisu")?.qty || 0);
-    const currentMilkBunQty = Number(editingTicket.items?.find((item) => item.name === "Milk Bun")?.qty || 0);
+    const currentChaiQty = Number(editingTicket.items?.find((item) => isChai(item.name))?.qty || 0);
+    const currentBunQty = Number(editingTicket.items?.find((item) => isBun(item.name))?.qty || 0);
+    const currentTiramisuQty = Number(editingTicket.items?.find((item) => isTiramisu(item.name))?.qty || 0);
+    const currentMilkBunQty = Number(editingTicket.items?.find((item) => isMilkBun(item.name))?.qty || 0);
     
     const chaiInv = Number(currentInventory.chai) || 0;
     const bunInv = Number(currentInventory.bun) || 0;
@@ -862,10 +871,10 @@ function AdminDashboard() {
     readyTickets.forEach((ticket) => {
       ticket.items?.forEach((item) => {
         if (!item.qty) return;
-        if (item.name === "Special Chai" || item.name === "Irani Chai") chaiCount += item.qty;
-        if (item.name === "Bun") bunCount += item.qty;
-        if (item.name === "Tiramisu") tiramisuCount += item.qty;
-        if (item.name === "Milk Bun") milkBunCount += item.qty;
+        if (isChai(item.name)) chaiCount += item.qty;
+        if (isBun(item.name)) bunCount += item.qty;
+        if (isTiramisu(item.name)) tiramisuCount += item.qty;
+        if (isMilkBun(item.name)) milkBunCount += item.qty;
       });
       // Only include paid tickets in revenue
       if (ticket.paid) {
@@ -889,7 +898,7 @@ function AdminDashboard() {
           <div className="h-32 w-32 overflow-hidden rounded-full border-4 border-white shadow">
             <Image
               src="/thechaicouple.jpg"
-              alt="Chai bun brand"
+              alt="Chai Bun Maska brand"
               width={200}
               height={200}
               className="h-full w-full object-cover"
@@ -975,7 +984,7 @@ function AdminDashboard() {
                         <Badge 
                           variant={(inventory?.milkBun ?? 0) <= 0 ? "destructive" : (inventory?.milkBun ?? 0) < (buffer.milkBun ?? 10) ? "default" : "secondary"}
                         >
-                          Milk Bun: {inventory?.milkBun ?? 0}
+                          Premium Milk Bun: {inventory?.milkBun ?? 0}
                         </Badge>
                       </>
                     )}
@@ -1190,7 +1199,7 @@ function AdminDashboard() {
                     </div>
                     <div className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3">
                       <div>
-                        <p className="font-medium">Bun</p>
+                        <p className="font-medium">Bun Maska</p>
                         <p className="text-xs text-muted-foreground">Available: {editAvailability.bun}</p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1256,7 +1265,7 @@ function AdminDashboard() {
                     </div>
                     <div className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3">
                       <div>
-                        <p className="font-medium">Milk Bun</p>
+                        <p className="font-medium">Premium Milk Bun</p>
                         <p className="text-xs text-muted-foreground">Available: {editAvailability.milkBun}</p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1367,7 +1376,7 @@ function AdminDashboard() {
                     </div>
                     <div className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3">
                       <div>
-                        <p className="font-medium">Bun</p>
+                        <p className="font-medium">Bun Maska</p>
                         <p className="text-xs text-muted-foreground">Available: {inventory?.bun ?? 0}</p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1433,7 +1442,7 @@ function AdminDashboard() {
                     </div>
                     <div className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3">
                       <div>
-                        <p className="font-medium">Milk Bun</p>
+                        <p className="font-medium">Premium Milk Bun</p>
                         <p className="text-xs text-muted-foreground">Available: {inventory?.milkBun ?? 0}</p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1492,13 +1501,16 @@ function AdminDashboard() {
             </Dialog>
 
             {/* Order Details Dialog */}
-            <Dialog open={orderDetailsDialogOpen} onOpenChange={(open) => {
-              if (!open) {
-                setOrderDetailsDialogOpen(false);
-                setSelectedTicket(null);
-              }
-            }}>
-              <DialogContent>
+            <Dialog
+              open={orderDetailsDialogOpen}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setOrderDetailsDialogOpen(false);
+                  setSelectedTicket(null);
+                }
+              }}
+            >
+              <DialogContent className="max-h-[90vh] sm:max-h-none flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Order Details</DialogTitle>
                   <DialogDescription>
@@ -1506,7 +1518,7 @@ function AdminDashboard() {
                   </DialogDescription>
                 </DialogHeader>
                 {selectedTicket && (
-                  <div className="space-y-4 py-4">
+                  <div className="space-y-4 py-4 flex-1 overflow-y-auto">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="rounded-lg border bg-card p-4">
                         <p className="text-sm text-muted-foreground">Queue Number</p>
@@ -1687,7 +1699,7 @@ function AdminDashboard() {
                   <SummaryCard label="Served chai" value={readySummary.chaiCount} />
                   <SummaryCard label="Served buns" value={readySummary.bunCount} />
                   <SummaryCard label="Served tiramisu" value={readySummary.tiramisuCount} />
-                  <SummaryCard label="Served milk buns" value={readySummary.milkBunCount} />
+                  <SummaryCard label="Served premium milk buns" value={readySummary.milkBunCount} />
                   <SummaryCard
                     label="Revenue"
                     value={currency.format(readySummary.revenue || 0)}
@@ -1777,8 +1789,11 @@ function AdminDashboard() {
             </Card>
 
             {/* View Served Ticket Dialog */}
-            <Dialog open={viewingTicket !== null} onOpenChange={(open) => !open && setViewingTicket(null)}>
-              <DialogContent>
+            <Dialog
+              open={viewingTicket !== null}
+              onOpenChange={(open) => !open && setViewingTicket(null)}
+            >
+              <DialogContent className="max-h-[90vh] sm:max-h-none flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Order Details</DialogTitle>
                   <DialogDescription>
@@ -1786,7 +1801,7 @@ function AdminDashboard() {
                   </DialogDescription>
                 </DialogHeader>
                 {viewingTicket && (
-                  <div className="space-y-4 py-4">
+                  <div className="space-y-4 py-4 flex-1 overflow-y-auto">
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm font-medium text-muted-foreground">Token:</span>
@@ -1962,7 +1977,7 @@ function AdminDashboard() {
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="bunInventory">Bun Inventory</Label>
+                      <Label htmlFor="bunInventory">Bun Maska Inventory</Label>
                       <Input
                         id="bunInventory"
                         type="number"
@@ -1972,7 +1987,7 @@ function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bunBuffer">Bun Buffer</Label>
+                      <Label htmlFor="bunBuffer">Bun Maska Buffer</Label>
                       <Input
                         id="bunBuffer"
                         type="number"
@@ -2012,7 +2027,7 @@ function AdminDashboard() {
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="milkBunInventory">Milk Bun Inventory</Label>
+                      <Label htmlFor="milkBunInventory">Premium Milk Bun Inventory</Label>
                       <Input
                         id="milkBunInventory"
                         type="number"
@@ -2022,7 +2037,7 @@ function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="milkBunBuffer">Milk Bun Buffer</Label>
+                      <Label htmlFor="milkBunBuffer">Premium Milk Bun Buffer</Label>
                       <Input
                         id="milkBunBuffer"
                         type="number"
@@ -2048,7 +2063,7 @@ function AdminDashboard() {
               <CardHeader>
                 <CardTitle>Pricing</CardTitle>
                 <CardDescription>
-                  Set the prices for Special Chai, Bun Maska, Tiramisu, and Milk Bun.
+                  Set the prices for Special Chai, Bun Maska, Tiramisu, and Premium Milk Bun.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -2068,7 +2083,7 @@ function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bunPrice">Bun price</Label>
+                      <Label htmlFor="bunPrice">Bun Maska price</Label>
                       <Input
                         id="bunPrice"
                         type="number"
@@ -2088,7 +2103,7 @@ function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="milkBunPrice">Milk Bun price</Label>
+                      <Label htmlFor="milkBunPrice">Premium Milk Bun price</Label>
                       <Input
                         id="milkBunPrice"
                         type="number"
@@ -2231,18 +2246,14 @@ function formatOrder(items) {
 }
 
 function ticketTotal(ticket, fallbackChai = 0, fallbackBun = 0, fallbackTiramisu = 0, fallbackMilkBun = 0) {
-  if (typeof ticket.total === "number") {
-    return ticket.total;
-  }
   if (!Array.isArray(ticket.items)) return 0;
   return ticket.items.reduce((sum, item) => {
     let price = fallbackBun;
-    // Handle both "Special Chai" and legacy "Irani Chai"
-    if (item.name === "Special Chai" || item.name === "Irani Chai") {
+    if (isChai(item.name)) {
       price = fallbackChai;
-    } else if (item.name === "Tiramisu") {
+    } else if (isTiramisu(item.name)) {
       price = fallbackTiramisu;
-    } else if (item.name === "Milk Bun") {
+    } else if (isMilkBun(item.name)) {
       price = fallbackMilkBun;
     }
     return sum + (price || 0) * (item.qty || 0);

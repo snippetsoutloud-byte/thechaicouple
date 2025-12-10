@@ -19,13 +19,13 @@
 
 ## System Overview
 
-**Chai Bun Tokens** is a real-time queue management system for a cafe/restaurant specializing in Irani chai, bun maska, and tiramisu. The system allows customers to join a digital queue, track their order status in real-time, and enables staff to manage orders, inventory, and pricing through an admin dashboard.
+**Chai Bun Tokens** is a real-time queue management system for a cafe/restaurant specializing in Irani chai, bun maska, premium milk bun, and tiramisu. The system allows customers to join a digital queue, track their order status in real-time, and enables staff to manage orders, inventory, and pricing through an admin dashboard.
 
 ### Key Capabilities
 
 - **Customer Queue Management**: Customers can join a queue, select items, and track their position in real-time
 - **Real-time Updates**: Server-Sent Events (SSE) for live queue and inventory updates
-- **Inventory Management**: Track and manage stock levels for chai, bun, and tiramisu
+- **Inventory Management**: Track and manage stock levels for chai, bun maska, premium milk bun, and tiramisu
 - **Order Processing**: Staff can mark orders as ready, edit orders, and track payments
 - **Service Window Control**: Configure service hours and availability
 - **Pricing Management**: Dynamic pricing configuration for menu items
@@ -81,7 +81,7 @@ The system uses **Server-Sent Events (SSE)** for real-time updates:
 ### Customer Features
 
 1. **Queue Joining**
-   - Enter name and select items (chai, bun, tiramisu)
+   - Enter name and select items (chai, bun maska, premium milk bun, tiramisu)
    - Real-time inventory validation
    - Automatic inventory decrement on order creation
    - Service window validation
@@ -216,7 +216,7 @@ All API routes are prefixed with `/api`
   "name": "John Doe",
   "items": [
     { "name": "Special Chai", "qty": 2 },
-    { "name": "Bun", "qty": 1 }
+    { "name": "Bun Maska", "qty": 1 }
   ]
 }
 ```
@@ -356,7 +356,7 @@ data: {"dateKey":"2024-01-15","tickets":[...],"settings":{...}}\n\n
   "dateKey": "2024-01-15",
   "items": [
     { "name": "Special Chai", "qty": 3 },
-    { "name": "Bun", "qty": 2 }
+    { "name": "Bun Maska", "qty": 2 }
   ]
 }
 ```
@@ -632,7 +632,7 @@ Individual ticket documents.
   "name": "John Doe",
   "items": [
     { "name": "Special Chai", "qty": 2 },
-    { "name": "Bun", "qty": 1 }
+    { "name": "Bun Maska", "qty": 1 }
   ],
   "status": "waiting" | "ready",
   "basePosition": 5,
@@ -700,7 +700,8 @@ queues/
 
 The system uses consistent item names:
 - `"Special Chai"` (legacy: `"Irani Chai"`)
-- `"Bun"`
+- `"Bun Maska"` (legacy: `"Bun"`)
+- `"Premium Milk Bun"` (legacy: `"Milk Bun"`)
 - `"Tiramisu"`
 
 Helper functions in `src/lib/item-names.js` handle name matching.

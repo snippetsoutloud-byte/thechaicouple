@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, firestoreHelpers } from "@/lib/firebase";
-import { ITEM_NAMES, isChai, isBun, isTiramisu } from "@/lib/item-names";
+import { isChai, isTiramisu, isMilkBun } from "@/lib/item-names";
 import { logFirestoreRead, logFirestoreWrite } from "@/lib/firebase-monitor";
 
 const { doc, collection, getDoc, setDoc, serverTimestamp } = firestoreHelpers;
@@ -29,7 +29,7 @@ export async function PATCH(request) {
     const dayRef = doc(db, "queues", dateKey);
     const ticketRef = doc(collection(dayRef, "tickets"), id);
     const ticketSnap = await getDoc(ticketRef);
-    logFirestoreRead(1, { endpoint: '/api/ready', document: 'ticket', method: 'PATCH' });
+    logFirestoreRead(1, { endpoint: "/api/ready", document: "ticket", method: "PATCH" });
 
     if (!ticketSnap.exists()) {
       return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
@@ -40,22 +40,28 @@ export async function PATCH(request) {
 
     const pricingRef = doc(db, "config", "pricing");
     const pricingSnap = await getDoc(pricingRef);
-    logFirestoreRead(1, { endpoint: '/api/ready', document: 'pricing', method: 'PATCH' });
+    logFirestoreRead(1, { endpoint: "/api/ready", document: "pricing", method: "PATCH" });
     const pricingData = pricingSnap.exists()
       ? pricingSnap.data()
-      : { chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0 };
+      : { chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 };
+
     const chaiPrice = Number(pricingData.chaiPrice) || 0;
     const bunPrice = Number(pricingData.bunPrice) || 0;
     const tiramisuPrice = Number(pricingData.tiramisuPrice) || 0;
+    const milkBunPrice = Number(pricingData.milkBunPrice) || 0;
 
     const total = originalItems.reduce((sum, item) => {
       const qty = Number(item.qty) || 0;
       let unitPrice = bunPrice;
+
       if (isChai(item.name)) {
         unitPrice = chaiPrice;
       } else if (isTiramisu(item.name)) {
         unitPrice = tiramisuPrice;
+      } else if (isMilkBun(item.name)) {
+        unitPrice = milkBunPrice;
       }
+
       return sum + unitPrice * qty;
     }, 0);
 
@@ -71,7 +77,7 @@ export async function PATCH(request) {
       },
       { merge: true }
     );
-    logFirestoreWrite(1, { endpoint: '/api/ready', document: 'ticket', method: 'PATCH' });
+    logFirestoreWrite(1, { endpoint: "/api/ready", document: "ticket", method: "PATCH" });
 
     return NextResponse.json({ id, dateKey, status }, { status: 200 });
   } catch (err) {

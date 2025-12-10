@@ -8,6 +8,7 @@ import { Coffee, CheckCircle2 } from "lucide-react";
 
 import { getTodayKey } from "@/lib/firebase";
 import { getCachedPricing, setCachedPricing } from "@/lib/pricing-cache";
+import { isChai, isTiramisu, isMilkBun } from "@/lib/item-names";
 import {
   Card,
   CardContent,
@@ -106,12 +107,11 @@ export default function ServedPage() {
       .filter((item) => item.qty > 0)
       .map((item) => {
         let price = pricing.bunPrice;
-        // Handle both "Special Chai" and legacy "Irani Chai"
-        if (item.name === "Special Chai" || item.name === "Irani Chai") {
+        if (isChai(item.name)) {
           price = pricing.chaiPrice;
-        } else if (item.name === "Tiramisu") {
+        } else if (isTiramisu(item.name)) {
           price = pricing.tiramisuPrice;
-        } else if (item.name === "Milk Bun") {
+        } else if (isMilkBun(item.name)) {
           price = pricing.milkBunPrice;
         }
         const subtotal = (price || 0) * item.qty;

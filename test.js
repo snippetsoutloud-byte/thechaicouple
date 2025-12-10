@@ -25,10 +25,10 @@ function generateRandomItems() {
     });
   }
   
-  // 60% of customers order bun
+  // 60% of customers order bun maska
   if (Math.random() > 0.4) {
     items.push({
-      name: "Bun",
+      name: "Bun Maska",
       qty: Math.floor(Math.random() * 3) + 1 // 1-3 buns
     });
   }
@@ -180,7 +180,7 @@ async function runTest() {
     return sum + (chai?.qty || 0);
   }, 0);
   const totalBun = successful.reduce((sum, r) => {
-    const bun = r.items.find(i => i.name === "Bun");
+    const bun = r.items.find(i => i.name === "Bun Maska");
     return sum + (bun?.qty || 0);
   }, 0);
   const totalTiramisu = successful.reduce((sum, r) => {
