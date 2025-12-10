@@ -3,7 +3,7 @@ export const ITEM_NAMES = {
   CHAI: "Special Chai",
   BUN: "Bun Maska",
   TIRAMISU: "Tiramisu",
-  MILK_BUN: "Premium Milk Bun",
+  MILK_BUN: "Milk Bun",
   // Legacy support for old data
   CHAI_LEGACY: "Irani Chai",
   BUN_LEGACY: "Bun",

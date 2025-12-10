@@ -984,7 +984,7 @@ function AdminDashboard() {
                         <Badge 
                           variant={(inventory?.milkBun ?? 0) <= 0 ? "destructive" : (inventory?.milkBun ?? 0) < (buffer.milkBun ?? 10) ? "default" : "secondary"}
                         >
-                          Premium Milk Bun: {inventory?.milkBun ?? 0}
+                          Milk Bun: {inventory?.milkBun ?? 0}
                         </Badge>
                       </>
                     )}
@@ -1265,7 +1265,7 @@ function AdminDashboard() {
                     </div>
                     <div className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3">
                       <div>
-                        <p className="font-medium">Premium Milk Bun</p>
+                        <p className="font-medium">Milk Bun</p>
                         <p className="text-xs text-muted-foreground">Available: {editAvailability.milkBun}</p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1442,7 +1442,7 @@ function AdminDashboard() {
                     </div>
                     <div className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3">
                       <div>
-                        <p className="font-medium">Premium Milk Bun</p>
+                        <p className="font-medium">Milk Bun</p>
                         <p className="text-xs text-muted-foreground">Available: {inventory?.milkBun ?? 0}</p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1699,7 +1699,7 @@ function AdminDashboard() {
                   <SummaryCard label="Served chai" value={readySummary.chaiCount} />
                   <SummaryCard label="Served bun maska" value={readySummary.bunCount} />
                   <SummaryCard label="Served tiramisu" value={readySummary.tiramisuCount} />
-                  <SummaryCard label="Served premium milk buns" value={readySummary.milkBunCount} />
+                  <SummaryCard label="Served milk buns" value={readySummary.milkBunCount} />
                   <SummaryCard
                     label="Revenue"
                     value={currency.format(readySummary.revenue || 0)}
@@ -2027,7 +2027,7 @@ function AdminDashboard() {
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="milkBunInventory">Premium Milk Bun Inventory</Label>
+                      <Label htmlFor="milkBunInventory">Milk Bun Inventory</Label>
                       <Input
                         id="milkBunInventory"
                         type="number"
@@ -2037,7 +2037,7 @@ function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="milkBunBuffer">Premium Milk Bun Buffer</Label>
+                      <Label htmlFor="milkBunBuffer">Milk Bun Buffer</Label>
                       <Input
                         id="milkBunBuffer"
                         type="number"
@@ -2063,7 +2063,7 @@ function AdminDashboard() {
               <CardHeader>
                 <CardTitle>Pricing</CardTitle>
                 <CardDescription>
-                  Set the prices for Special Chai, Bun Maska, Tiramisu, and Premium Milk Bun.
+                  Set the prices for Special Chai, Bun Maska, Tiramisu, and Milk Bun.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -2103,7 +2103,7 @@ function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="milkBunPrice">Premium Milk Bun price</Label>
+                      <Label htmlFor="milkBunPrice">Milk Bun price</Label>
                       <Input
                         id="milkBunPrice"
                         type="number"

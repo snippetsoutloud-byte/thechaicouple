@@ -25,7 +25,7 @@ const MENU = [
   { key: "chai", label: "Special Chai" },
   { key: "bun", label: "Bun Maska" },
   { key: "tiramisu", label: "Tiramisu" },
-  { key: "milkBun", label: "Premium Milk Bun" },
+  { key: "milkBun", label: "Milk Bun" },
 ];
 
 const currency = new Intl.NumberFormat("en-IN", {
