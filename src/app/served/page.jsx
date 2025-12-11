@@ -7,7 +7,7 @@ export default function ServedPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/queue");
+    router.replace("/q");
   }, [router]);
 
   return null;

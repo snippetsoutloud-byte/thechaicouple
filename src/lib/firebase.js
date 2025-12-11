@@ -36,8 +36,8 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 export function getTodayKey() {
-  const now = new Date();
-  return now.toISOString().slice(0, 10);
+  // Use India Standard Time (IST) for date calculation
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 }
 
 export const firestoreHelpers = {

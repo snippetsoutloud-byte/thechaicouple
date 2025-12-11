@@ -154,7 +154,7 @@ export default function ServedPage() {
             </CardHeader>
             <CardFooter className="flex justify-center">
               <Button asChild variant="outline">
-                <Link href="/queue">Back to Queue</Link>
+                <Link href="/q">Back to Queue</Link>
               </Button>
             </CardFooter>
           </Card>
@@ -247,13 +247,13 @@ export default function ServedPage() {
               size="lg"
               className="bg-emerald-500 text-white hover:bg-emerald-500/90"
             >
-              <Link href="/queue">
+              <Link href="/q">
                 <Coffee className="mr-2 h-4 w-4" />
                 Order another round
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <Link href="/queue">Back to home</Link>
+              <Link href="/q">Back to home</Link>
             </Button>
           </CardFooter>
         </Card>

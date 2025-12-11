@@ -86,7 +86,7 @@ export default function StatusPage() {
                 window.localStorage.removeItem("idempotencyKey"); // Clear idempotency key
               }
               // Redirect to queue page
-              router.replace("/queue");
+              router.replace("/q");
               return;
             } else {
               // First check - ticket might not exist yet, keep loading
@@ -190,7 +190,7 @@ export default function StatusPage() {
               window.localStorage.removeItem("queueTicket");
               window.localStorage.removeItem("idempotencyKey"); // Clear idempotency key
             }
-            router.replace("/queue");
+            router.replace("/q");
           }
           return;
         }
@@ -289,7 +289,7 @@ export default function StatusPage() {
       // ignore
     } finally {
       setExitDialogOpen(false);
-      router.replace("/queue");
+      router.replace("/q");
     }
   }
 
