@@ -907,7 +907,7 @@ function AdminDashboard() {
           </div>
           <h1 className="text-3xl font-semibold">Admin Dashboard</h1>
           <p className="text-muted-foreground text-sm">
-            Manage g queue and review completed orders.
+            Manage today&apos;s queue and review completed orders.
           </p>
         </div>
 
