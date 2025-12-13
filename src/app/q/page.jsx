@@ -418,7 +418,7 @@ export default function QueuePage() {
               )}
 
               <Button type="submit" className="w-full" disabled={!canSubmit}>
-                {submitting ? "Adding you to the line..." : "Get My Token"}
+                {submitting ? "Adding you to the Queue..." : "Join Queue"}
               </Button>
             </form>
 
