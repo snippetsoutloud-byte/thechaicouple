@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
     tiramisu: 10,
     milkBun: 10,
   },
+  christmasTheme: false,
 };
 
 export async function GET() {
@@ -63,6 +64,7 @@ export async function POST(request) {
     const serviceStart = body.serviceStart ?? existingData.serviceStart ?? DEFAULT_SETTINGS.serviceStart;
     const serviceEnd = body.serviceEnd ?? existingData.serviceEnd ?? DEFAULT_SETTINGS.serviceEnd;
     const closedMessage = body.closedMessage ?? existingData.closedMessage ?? DEFAULT_SETTINGS.closedMessage;
+    const christmasTheme = body.christmasTheme !== undefined ? body.christmasTheme : (existingData.christmasTheme ?? DEFAULT_SETTINGS.christmasTheme);
     
     // Handle inventory: use provided value, fallback to existing, then default
     const inventory = {
@@ -88,6 +90,7 @@ export async function POST(request) {
         closedMessage,
         inventory,
         buffer,
+        christmasTheme,
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -95,7 +98,7 @@ export async function POST(request) {
     logFirestoreWrite(1, { endpoint: '/api/settings', document: 'settings', method: 'POST' });
 
     return NextResponse.json(
-      { serviceStart, serviceEnd, closedMessage, inventory, buffer },
+      { serviceStart, serviceEnd, closedMessage, inventory, buffer, christmasTheme },
       { status: 200 }
     );
   } catch (err) {

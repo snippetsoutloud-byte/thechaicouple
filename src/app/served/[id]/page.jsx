@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Coffee, CheckCircle2 } from "lucide-react";
+import { Coffee, CheckCircle2, Loader2 } from "lucide-react";
 
 import { getTodayKey } from "@/lib/firebase";
 import { getCachedPricing, setCachedPricing } from "@/lib/pricing-cache";
@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import ChristmasServed from "@/components/ChristmasServed";
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -28,6 +29,45 @@ const currency = new Intl.NumberFormat("en-IN", {
 });
 
 export default function ServedPage() {
+  const [useChristmasTheme, setUseChristmasTheme] = useState(null);
+
+  // Load theme preference from settings
+  useEffect(() => {
+    async function loadTheme() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const data = await res.json();
+          setUseChristmasTheme(data.christmasTheme === true);
+        } else {
+          setUseChristmasTheme(false);
+        }
+      } catch {
+        setUseChristmasTheme(false);
+      }
+    }
+    loadTheme();
+  }, []);
+
+  // Show loading state while determining theme
+  if (useChristmasTheme === null) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-amber-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </main>
+    );
+  }
+
+  // Render Christmas theme if enabled
+  if (useChristmasTheme) {
+    return <ChristmasServed />;
+  }
+
+  // Render default theme
+  return <DefaultServedPage />;
+}
+
+function DefaultServedPage() {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

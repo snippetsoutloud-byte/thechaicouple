@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import { db, getTodayKey, firestoreHelpers } from "@/lib/firebase";
-import { isChai, isBun, isTiramisu, isMilkBun } from "@/lib/item-names";
-//import { logFirestoreRead, logFirestoreWrite } from "@/lib/firebase-monitor";
 
 const {
   doc,
@@ -11,6 +9,7 @@ const {
   query,
   where,
   serverTimestamp,
+  getDoc,
 } = firestoreHelpers;
 
 export async function POST(request) {
@@ -39,7 +38,7 @@ export async function POST(request) {
 
     const dateKey = getTodayKey();
     const dayRef = doc(db, "queues", dateKey);
-    const settingsRef = doc(db, "config", "app-settings");
+    const productsRef = doc(db, "config", "products");
 
     // Check if a ticket with this idempotency key already exists
     if (idempotencyKey) {
@@ -49,45 +48,31 @@ export async function POST(request) {
         const existingSnapshot = await getDocs(existingQuery);
         
         if (!existingSnapshot.empty) {
-          // Check if the existing ticket is still in "waiting" status
           const existingTicket = existingSnapshot.docs[0];
           const ticketData = existingTicket.data();
           
-          // Only return existing ticket if it's still waiting
           if (ticketData.status === "waiting") {
             return NextResponse.json({
               id: existingTicket.id,
               position: ticketData.basePosition,
               dateKey: ticketData.dateKey,
               items: ticketData.items,
-              existing: true // Flag to indicate this is an existing ticket
+              existing: true
             }, { status: 200 });
           }
-          // If ticket is not waiting (ready, served, etc.), allow creating a new ticket
-          // The old idempotency key is essentially expired
         }
       } catch (err) {
         console.error("Error checking idempotency key:", err);
-        // Continue to create new ticket if check fails
       }
     }
 
-    // Calculate inventory changes
-    let chaiDecrement = 0;
-    let bunDecrement = 0;
-    let tiramisuDecrement = 0;
-    let milkBunDecrement = 0;
-    
+    // Build inventory decrements by productId
+    const decrements = {};
     items.forEach((item) => {
       const qty = Number(item.qty) || 0;
-      if (isChai(item.name)) {
-        chaiDecrement += qty;
-      } else if (isBun(item.name)) {
-        bunDecrement += qty;
-      } else if (isTiramisu(item.name)) {
-        tiramisuDecrement += qty;
-      } else if (isMilkBun(item.name)) {
-        milkBunDecrement += qty;
+      const productId = item.productId;
+      if (productId && qty > 0) {
+        decrements[productId] = (decrements[productId] || 0) + qty;
       }
     });
 
@@ -95,27 +80,26 @@ export async function POST(request) {
     const result = await runTransaction(db, async (tx) => {
       // Read queue day document
       const daySnap = await tx.get(dayRef);
-      //logFirestoreRead(1, { endpoint: '/api/join', document: 'queue-day' });
       const current = daySnap.exists()
         ? daySnap.data().nextPosition || 0
         : 0;
       const nextPosition = current + 1;
 
-      // Read settings document for inventory
-      const settingsSnap = await tx.get(settingsRef);
-      //logFirestoreRead(1, { endpoint: '/api/join', document: 'settings' });
-      if (!settingsSnap.exists()) {
-        throw new Error("Settings document not found");
+      // Read products document
+      const productsSnap = await tx.get(productsRef);
+      let products = [];
+      if (productsSnap.exists()) {
+        products = productsSnap.data().products || [];
       }
 
-      const currentSettings = settingsSnap.data();
-      const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
-
-      // Calculate new inventory (prevent negative)
-      const newChaiInventory = Math.max(0, (currentInventory.chai || 0) - chaiDecrement);
-      const newBunInventory = Math.max(0, (currentInventory.bun || 0) - bunDecrement);
-      const newTiramisuInventory = Math.max(0, (currentInventory.tiramisu || 0) - tiramisuDecrement);
-      const newMilkBunInventory = Math.max(0, (currentInventory.milkBun || 0) - milkBunDecrement);
+      // Validate inventory and calculate new values
+      const updatedProducts = products.map((product) => {
+        if (decrements[product.id]) {
+          const newInventory = Math.max(0, product.inventory - decrements[product.id]);
+          return { ...product, inventory: newInventory };
+        }
+        return product;
+      });
 
       // Update queue day document
       tx.set(
@@ -126,7 +110,6 @@ export async function POST(request) {
         },
         { merge: true }
       );
-     // logFirestoreWrite(1, { endpoint: '/api/join', document: 'queue-day' });
 
       // Create ticket
       const ticketsCol = collection(dayRef, "tickets");
@@ -139,20 +122,17 @@ export async function POST(request) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         dateKey,
-        idempotencyKey: idempotencyKey || null, // Store the idempotency key
+        idempotencyKey: idempotencyKey || null,
       };
       tx.set(ticketRef, ticket);
-     // logFirestoreWrite(1, { endpoint: '/api/join', document: 'ticket' });
 
-      // Update inventory atomically
-      tx.update(settingsRef, {
-        "inventory.chai": newChaiInventory,
-        "inventory.bun": newBunInventory,
-        "inventory.tiramisu": newTiramisuInventory,
-        "inventory.milkBun": newMilkBunInventory,
-        updatedAt: serverTimestamp(),
-      });
-     // logFirestoreWrite(1, { endpoint: '/api/join', document: 'settings' });
+      // Update products inventory atomically
+      if (Object.keys(decrements).length > 0) {
+        tx.set(productsRef, {
+          products: updatedProducts,
+          updatedAt: serverTimestamp(),
+        });
+      }
 
       return { id: ticketRef.id, position: nextPosition, dateKey, items };
     });
@@ -166,7 +146,3 @@ export async function POST(request) {
     );
   }
 }
-
-
-
-

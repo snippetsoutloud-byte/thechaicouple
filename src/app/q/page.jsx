@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { Minus, Plus, Loader2 } from "lucide-react";
 
 import { getTodayKey } from "@/lib/firebase";
-import { getCachedPricing, setCachedPricing } from "@/lib/pricing-cache";
 import {
   Card,
   CardContent,
@@ -20,13 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-
-const MENU = [
-  { key: "chai", label: "Special Chai" },
-  { key: "bun", label: "Bun Maska" },
-  { key: "tiramisu", label: "Tiramisu" },
-  { key: "milkBun", label: "Milk Bun" },
-];
+import ChristmasQueue from "@/components/ChristmasQueue";
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -35,16 +28,57 @@ const currency = new Intl.NumberFormat("en-IN", {
 });
 
 export default function QueuePage() {
+  const [useChristmasTheme, setUseChristmasTheme] = useState(null);
+
+  // Load theme preference from settings
+  useEffect(() => {
+    async function loadTheme() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const data = await res.json();
+          setUseChristmasTheme(data.christmasTheme === true);
+        } else {
+          setUseChristmasTheme(false);
+        }
+      } catch {
+        setUseChristmasTheme(false);
+      }
+    }
+    loadTheme();
+  }, []);
+
+  // Show loading state while determining theme
+  if (useChristmasTheme === null) {
+    return (
+      <main className="min-h-screen bg-muted/40 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </main>
+    );
+  }
+
+  // Render Christmas theme if enabled
+  if (useChristmasTheme) {
+    return <ChristmasQueue />;
+  }
+
+  // Render default theme
+  return <DefaultQueuePage />;
+}
+
+function DefaultQueuePage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [quantities, setQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
-  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 });
+  const [products, setProducts] = useState([]);
+  const [quantities, setQuantities] = useState({});
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [settings, setSettings] = useState(null);
   const [settingsError, setSettingsError] = useState("");
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
 
+  // Redirect if already has ticket
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -64,41 +98,69 @@ export default function QueuePage() {
     return `idem_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
   }
 
+  // Load products
   useEffect(() => {
     let ignore = false;
-    const cached = getCachedPricing();
-    if (cached?.data) {
-      setPricing(cached.data);
-      if (cached.fresh) {
-        return;
-      }
-    }
 
-    async function loadPricing() {
+    async function loadProducts() {
       try {
-        const res = await fetch("/api/pricing");
+        const res = await fetch("/api/products");
         if (!res.ok) return;
         const data = await res.json();
-        const next = {
-          chaiPrice: Number(data.chaiPrice) || 0,
-          bunPrice: Number(data.bunPrice) || 0,
-          tiramisuPrice: Number(data.tiramisuPrice) || 0,
-          milkBunPrice: Number(data.milkBunPrice) || 0,
-        };
-        if (!ignore) {
-          setPricing(next);
+        if (!ignore && data.products) {
+          setProducts(data.products);
+          // Initialize quantities for each product
+          const initialQuantities = {};
+          data.products.forEach((p) => {
+            initialQuantities[p.id] = 0;
+          });
+          setQuantities(initialQuantities);
         }
-        setCachedPricing(next);
       } catch {
         // ignore
+      } finally {
+        if (!ignore) setProductsLoading(false);
       }
     }
-    loadPricing();
+    loadProducts();
     return () => {
       ignore = true;
     };
   }, []);
 
+  // SSE for real-time product updates
+  useEffect(() => {
+    // Poll for product updates every 30 seconds
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/products");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.products) {
+            setProducts(data.products);
+            // Auto-adjust quantities if inventory drops below selected quantities
+            setQuantities((prev) => {
+              const updated = { ...prev };
+              data.products.forEach((p) => {
+                if (updated[p.id] === undefined) {
+                  updated[p.id] = 0;
+                } else if (updated[p.id] > p.inventory) {
+                  updated[p.id] = p.inventory;
+                }
+              });
+              return updated;
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Load settings for service hours
   useEffect(() => {
     if (typeof window === "undefined") return;
     
@@ -112,17 +174,6 @@ export default function QueuePage() {
           setSettings(payload.settings);
           setSettingsLoading(false);
           setSettingsError("");
-          
-          // Auto-adjust quantities if inventory drops below selected quantities
-          setQuantities((prev) => {
-            const newInventory = payload.settings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
-            return {
-              chai: Math.min(prev.chai || 0, newInventory.chai || 0),
-              bun: Math.min(prev.bun || 0, newInventory.bun || 0),
-              tiramisu: Math.min(prev.tiramisu || 0, newInventory.tiramisu || 0),
-              milkBun: Math.min(prev.milkBun || 0, newInventory.milkBun || 0),
-            };
-          });
         }
       } catch {
         setSettingsError("Failed to process settings update");
@@ -130,30 +181,28 @@ export default function QueuePage() {
       }
     };
     
-    source.onopen = () => {
-      // Connection opened, but don't set loading to false until we receive settings
-    };
-    
-    source.onerror = () => {
-      // Don't set loading to false on error - keep trying
-      // Only set error state, but don't show badges until we have actual settings
-      
-    };
-    
     return () => {
       source.close();
     };
   }, []);
 
+  // Filter to only show products with inventory > 0
+  const availableProducts = useMemo(
+    () => products.filter((p) => p.inventory > 0),
+    [products]
+  );
+
   const orderItems = useMemo(
     () =>
-      MENU.map((item) => ({
-        name: item.label,
-        key: item.key,
-        qty: quantities[item.key] || 0,
-        price: item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : item.key === "tiramisu" ? pricing.tiramisuPrice : pricing.milkBunPrice,
-      })).filter((item) => item.qty > 0),
-    [quantities, pricing]
+      products
+        .map((product) => ({
+          name: product.name,
+          id: product.id,
+          qty: quantities[product.id] || 0,
+          price: product.price,
+        }))
+        .filter((item) => item.qty > 0),
+    [products, quantities]
   );
 
   const total = orderItems.reduce(
@@ -179,30 +228,24 @@ export default function QueuePage() {
     return nowMinutes >= startMinutes || nowMinutes <= endMinutes;
   }, [settings]);
 
-  // Calculate availability from inventory (inventory > 0 means available)
-  const inventory = settings?.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
-  const buffer = settings?.buffer || { chai: 10, bun: 10, tiramisu: 10, milkBun: 10 };
-  const availability = {
-    chai: (inventory.chai || 0) > 0,
-    bun: (inventory.bun || 0) > 0,
-    tiramisu: (inventory.tiramisu || 0) > 0,
-    milkBun: (inventory.milkBun || 0) > 0,
-  };
-  const hasAnyAvailable = availability.chai || availability.bun || availability.tiramisu || availability.milkBun;
+  const hasAnyAvailable = availableProducts.length > 0;
   const queueOpen = isWithinServiceWindow && hasAnyAvailable;
 
   const canSubmit =
     queueOpen && name.trim().length > 0 && orderItems.length > 0 && !submitting;
 
-  function updateQuantity(key, delta) {
-    const available =
-      settings?.availability?.[key] ?? availability[key] ?? true;
+  function updateQuantity(productId, delta) {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+
     setQuantities((prev) => {
-      if (delta > 0 && !available) {
+      const current = prev[productId] || 0;
+      const maxQty = product.inventory;
+      if (delta > 0 && current >= maxQty) {
         return prev;
       }
-      const next = Math.max(0, (prev[key] || 0) + delta);
-      return { ...prev, [key]: next };
+      const next = Math.max(0, Math.min(current + delta, maxQty));
+      return { ...prev, [productId]: next };
     });
   }
 
@@ -222,7 +265,7 @@ export default function QueuePage() {
         }
       }
 
-      const items = orderItems.map(({ name, qty }) => ({ name, qty }));
+      const items = orderItems.map(({ name, qty, id }) => ({ name, qty, productId: id }));
       const res = await fetch("/api/join", {
         method: "POST",
         headers: { 
@@ -250,6 +293,8 @@ export default function QueuePage() {
       setSubmitting(false);
     }
   }
+
+  const isLoading = productsLoading || settingsLoading;
 
   return (
     <main className="min-h-screen bg-muted/40 py-10">
@@ -308,70 +353,63 @@ export default function QueuePage() {
               </div>
 
               <div className="space-y-3">
-                {MENU.map((item) => {
-                  const price =
-                    item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : item.key === "tiramisu" ? pricing.tiramisuPrice : pricing.milkBunPrice;
-                  const qty = quantities[item.key] || 0;
-                  const available = availability[item.key] ?? false;
-                  // Only calculate inventory when settings are loaded
-                  const itemInventory = settings ? (inventory[item.key] || 0) : null;
-                  const itemBuffer = settings ? (buffer[item.key] || 10) : null;
-                  // Only show badges when settings are actually loaded
-                  const settingsLoaded = settings !== null && !settingsLoading;
-                  const isLowStock = settingsLoaded && itemInventory !== null && itemInventory > 0 && itemInventory < itemBuffer;
-                  const isOutOfStock = settingsLoaded && itemInventory !== null && itemInventory <= 0;
-                  
-                  return (
-                    <div
-                      key={item.key}
-                      className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium">{item.label}</p>
-                          {(!settingsLoaded || settingsLoading) && (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                          )}
-                          {settingsLoaded && isOutOfStock && (
-                            <Badge variant="destructive" className="text-xs">
-                              Out of Stock
-                            </Badge>
-                          )}
-                          {settingsLoaded && isLowStock && !isOutOfStock && (
-                            <Badge variant="default" className="text-xs bg-amber-500 hover:bg-amber-600">
-                              Low Stock ({itemInventory} left)
-                            </Badge>
-                          )}
+                {productsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : availableProducts.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <p>No products available at the moment.</p>
+                  </div>
+                ) : (
+                  availableProducts.map((product) => {
+                    const qty = quantities[product.id] || 0;
+                    const isLowStock = product.inventory > 0 && product.inventory <= product.buffer;
+                    
+                    return (
+                      <div
+                        key={product.id}
+                        className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium">{product.name}</p>
+                            {isLowStock && (
+                              <Badge variant="default" className="text-xs bg-amber-500 hover:bg-amber-600">
+                                Low Stock ({product.inventory} left)
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {currency.format(product.price)}
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {price ? currency.format(price) : "Pricing pending"}
-                        </p>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => updateQuantity(product.id, -1)}
+                            disabled={qty === 0}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="w-8 text-center text-lg font-semibold">
+                            {qty}
+                          </span>
+                          <Button
+                            type="button"
+                            size="icon"
+                            onClick={() => updateQuantity(product.id, 1)}
+                            disabled={!queueOpen || qty >= product.inventory}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => updateQuantity(item.key, -1)}
-                          disabled={qty === 0}
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <span className="w-8 text-center text-lg font-semibold">
-                          {qty}
-                        </span>
-                        <Button
-                          type="button"
-                          size="icon"
-                          onClick={() => updateQuantity(item.key, 1)}
-                          disabled={!available || !queueOpen || (itemInventory !== null && qty >= itemInventory)}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
 
               {orderItems.length > 0 && (
@@ -383,7 +421,7 @@ export default function QueuePage() {
                   <ul className="mt-3 space-y-1 text-sm">
                     {orderItems.map((item) => (
                       <li
-                        key={item.key}
+                        key={item.id}
                         className="flex items-center justify-between text-muted-foreground"
                       >
                         <span>

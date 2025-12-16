@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { LogOut, RotateCw } from "lucide-react";
+import { LogOut, RotateCw, Loader2 } from "lucide-react";
 
 import { getTodayKey } from "@/lib/firebase";
 import { getCachedPricing, setCachedPricing } from "@/lib/pricing-cache";
@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import ChristmasStatus from "@/components/ChristmasStatus";
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -36,6 +37,45 @@ const currency = new Intl.NumberFormat("en-IN", {
 });
 
 export default function StatusPage() {
+  const [useChristmasTheme, setUseChristmasTheme] = useState(null);
+
+  // Load theme preference from settings
+  useEffect(() => {
+    async function loadTheme() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const data = await res.json();
+          setUseChristmasTheme(data.christmasTheme === true);
+        } else {
+          setUseChristmasTheme(false);
+        }
+      } catch {
+        setUseChristmasTheme(false);
+      }
+    }
+    loadTheme();
+  }, []);
+
+  // Show loading state while determining theme
+  if (useChristmasTheme === null) {
+    return (
+      <main className="min-h-screen bg-muted/40 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </main>
+    );
+  }
+
+  // Render Christmas theme if enabled
+  if (useChristmasTheme) {
+    return <ChristmasStatus />;
+  }
+
+  // Render default theme
+  return <DefaultStatusPage />;
+}
+
+function DefaultStatusPage() {
   const { id } = useParams();
   const router = useRouter();
 

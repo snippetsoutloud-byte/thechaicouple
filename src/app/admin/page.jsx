@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Minus, Plus, Edit, Trash2, Loader2, RotateCw, UserPlus } from "lucide-react";
 import { ITEM_NAMES, isChai, isBun, isTiramisu, isMilkBun } from "@/lib/item-names";
+import ProductManagement from "@/components/ProductManagement";
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -141,22 +142,23 @@ function AdminDashboard() {
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
 
-  const [chaiPrice, setChaiPrice] = useState("");
-  const [bunPrice, setBunPrice] = useState("");
-  const [tiramisuPrice, setTiramisuPrice] = useState("");
-  const [milkBunPrice, setMilkBunPrice] = useState("");
-  const [pricingError, setPricingError] = useState("");
-  const [pricingSaving, setPricingSaving] = useState(false);
-
   const [serviceStart, setServiceStart] = useState("06:00");
   const [serviceEnd, setServiceEnd] = useState("23:00");
   const [closedMessage, setClosedMessage] = useState("");
-  const [inventory, setInventory] = useState(null); // null until loaded
-  const [buffer, setBuffer] = useState({ chai: 10, bun: 10, tiramisu: 10, milkBun: 10 });
-  const [inventoryLoaded, setInventoryLoaded] = useState(false);
+  const [christmasTheme, setChristmasTheme] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
-  const [inventorySaving, setInventorySaving] = useState(false);
+  
+  // Legacy inventory state - populated from products for backward compatibility
+  const [inventory, setInventory] = useState({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
+  const [buffer, setBuffer] = useState({ chai: 10, bun: 10, tiramisu: 10, milkBun: 10 });
+  const [inventoryLoaded, setInventoryLoaded] = useState(false);
+  
+  // Legacy pricing state - populated from products for backward compatibility
+  const [chaiPrice, setChaiPrice] = useState(0);
+  const [bunPrice, setBunPrice] = useState(0);
+  const [tiramisuPrice, setTiramisuPrice] = useState(0);
+  const [milkBunPrice, setMilkBunPrice] = useState(0);
 
   const [clearing, setClearing] = useState(false);
   const [paidUpdating, setPaidUpdating] = useState({});
@@ -222,24 +224,12 @@ function AdminDashboard() {
           setQueueTickets(Array.isArray(payload.tickets) ? payload.tickets : []);
         }
         
-        // Update settings (including inventory) in real-time
+        // Update service settings in real-time (inventory is now loaded from products)
         if (payload.settings) {
-          setInventory({
-            chai: payload.settings.inventory?.chai ?? 0,
-            bun: payload.settings.inventory?.bun ?? 0,
-            tiramisu: payload.settings.inventory?.tiramisu ?? 0,
-            milkBun: payload.settings.inventory?.milkBun ?? 0,
-          });
-          setBuffer({
-            chai: payload.settings.buffer?.chai ?? 10,
-            bun: payload.settings.buffer?.bun ?? 10,
-            tiramisu: payload.settings.buffer?.tiramisu ?? 10,
-            milkBun: payload.settings.buffer?.milkBun ?? 10,
-          });
           setServiceStart(payload.settings.serviceStart || "06:00");
           setServiceEnd(payload.settings.serviceEnd || "23:00");
           setClosedMessage(payload.settings.closedMessage || "");
-          setInventoryLoaded(true);
+          setChristmasTheme(payload.settings.christmasTheme || false);
         }
         
         setQueueLoading(false);
@@ -275,41 +265,6 @@ function AdminDashboard() {
     loadDashboardTickets(dashboardDate);
   }, [tab, dashboardDate, loadDashboardTickets]);
 
-  useEffect(() => {
-    async function loadPricing() {
-      try {
-        const res = await fetch("/api/pricing");
-        const json = await res.json();
-        if (!res.ok) {
-          setPricingError(json.error || "Failed to load pricing");
-          return;
-        }
-        setChaiPrice(String(json.chaiPrice ?? ""));
-        setBunPrice(String(json.bunPrice ?? ""));
-        setTiramisuPrice(String(json.tiramisuPrice ?? ""));
-        setMilkBunPrice(String(json.milkBunPrice ?? ""));
-      } catch {
-        setPricingError("Failed to load pricing");
-      }
-    }
-    loadPricing();
-  }, []);
-
-  // const reloadInventory = useCallback(async () => {
-  //   try {
-  //     const res = await fetch("/api/settings");
-  //     const json = await res.json();
-  //     if (res.ok) {
-  //       setInventory({
-  //         chai: json.inventory?.chai ?? 0,
-  //         bun: json.inventory?.bun ?? 0,
-  //         tiramisu: json.inventory?.tiramisu ?? 0,
-  //       });
-  //     }
-  //   } catch {
-  //     // ignore
-  //   }
-  // }, []);
 
   useEffect(() => {
     if (tab !== "settings") return; // Only load when on Settings tab
@@ -325,25 +280,62 @@ function AdminDashboard() {
         setServiceStart(json.serviceStart || "06:00");
         setServiceEnd(json.serviceEnd || "23:00");
         setClosedMessage(json.closedMessage || "");
-        setInventory({
-          chai: json.inventory?.chai ?? 0,
-          bun: json.inventory?.bun ?? 0,
-          tiramisu: json.inventory?.tiramisu ?? 0,
-          milkBun: json.inventory?.milkBun ?? 0,
-        });
-        setBuffer({
-          chai: json.buffer?.chai ?? 10,
-          bun: json.buffer?.bun ?? 10,
-          tiramisu: json.buffer?.tiramisu ?? 10,
-          milkBun: json.buffer?.milkBun ?? 10,
-        });
-        setInventoryLoaded(true);
+        setChristmasTheme(json.christmasTheme || false);
       } catch {
         setSettingsError("Failed to load settings");
       }
     }
     loadSettings();
   }, [tab]);
+
+  // Load products and populate legacy inventory/pricing state for backward compatibility
+  useEffect(() => {
+    async function loadProductsForInventory() {
+      try {
+        const res = await fetch("/api/products");
+        const json = await res.json();
+        if (res.ok && json.products) {
+          const inv = { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
+          const buf = { chai: 10, bun: 10, tiramisu: 10, milkBun: 10 };
+          const prices = { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
+          json.products.forEach((p) => {
+            if (p.id === "chai" || p.name.toLowerCase().includes("chai")) {
+              inv.chai = p.inventory || 0;
+              buf.chai = p.buffer || 10;
+              prices.chai = p.price || 0;
+            } else if (p.id === "bun" || p.name.toLowerCase().includes("bun maska")) {
+              inv.bun = p.inventory || 0;
+              buf.bun = p.buffer || 10;
+              prices.bun = p.price || 0;
+            } else if (p.id === "tiramisu" || p.name.toLowerCase().includes("tiramisu")) {
+              inv.tiramisu = p.inventory || 0;
+              buf.tiramisu = p.buffer || 10;
+              prices.tiramisu = p.price || 0;
+            } else if (p.id === "milkBun" || p.name.toLowerCase().includes("milk bun")) {
+              inv.milkBun = p.inventory || 0;
+              buf.milkBun = p.buffer || 10;
+              prices.milkBun = p.price || 0;
+            }
+          });
+          setInventory(inv);
+          setBuffer(buf);
+          setChaiPrice(prices.chai);
+          setBunPrice(prices.bun);
+          setTiramisuPrice(prices.tiramisu);
+          setMilkBunPrice(prices.milkBun);
+          setInventoryLoaded(true);
+        }
+      } catch {
+        // Ignore errors, use defaults
+        setInventoryLoaded(true);
+      }
+    }
+    loadProductsForInventory();
+
+    // Also poll for updates
+    const interval = setInterval(loadProductsForInventory, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Listen to real-time settings updates (including inventory) from stream
   // useEffect(() => {
@@ -699,38 +691,6 @@ function AdminDashboard() {
     }
   }
 
-  async function savePricing(event) {
-    event.preventDefault();
-    setPricingError("");
-    setPricingSaving(true);
-    try {
-      const res = await fetch("/api/pricing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chaiPrice: Number(chaiPrice),
-          bunPrice: Number(bunPrice),
-          tiramisuPrice: Number(tiramisuPrice),
-          milkBunPrice: Number(milkBunPrice),
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setPricingError(json.error || "Failed to save pricing");
-        setPricingSaving(false);
-        return;
-      }
-      setChaiPrice(String(json.chaiPrice ?? ""));
-      setBunPrice(String(json.bunPrice ?? ""));
-      setTiramisuPrice(String(json.tiramisuPrice ?? ""));
-      setMilkBunPrice(String(json.milkBunPrice ?? ""));
-      setPricingSaving(false);
-    } catch {
-      setPricingError("Failed to save pricing");
-      setPricingSaving(false);
-    }
-  }
-
   async function saveSettings(event) {
     event.preventDefault();
     setSettingsError("");
@@ -743,6 +703,7 @@ function AdminDashboard() {
           serviceStart,
           serviceEnd,
           closedMessage,
+          christmasTheme,
         }),
       });
       const json = await res.json();
@@ -754,65 +715,13 @@ function AdminDashboard() {
       setServiceStart(json.serviceStart || "06:00");
       setServiceEnd(json.serviceEnd || "23:00");
       setClosedMessage(json.closedMessage || "");
+      setChristmasTheme(json.christmasTheme || false);
       setSettingsSaving(false);
     } catch {
       setSettingsError("Failed to save settings");
       setSettingsSaving(false);
     }
   }
-
-  async function saveInventory(event) {
-    event.preventDefault();
-    setSettingsError("");
-    setInventorySaving(true);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          inventory,
-          buffer,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setSettingsError(json.error || "Failed to save inventory");
-        setInventorySaving(false);
-        return;
-      }
-      setInventory(json.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
-      setBuffer(json.buffer || { chai: 10, bun: 10, tiramisu: 10, milkBun: 10 });
-      setInventorySaving(false);
-    } catch {
-      setSettingsError("Failed to save inventory");
-      setInventorySaving(false);
-    }
-  }
-
-  // Calculate available inventory for edit modal (current inventory + items in the order being edited)
-  const editAvailability = useMemo(() => {
-    if (!editingTicket) {
-      return { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
-    }
-    // Ensure inventory is an object with numeric values
-    const currentInventory = inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
-    const currentChaiQty = Number(editingTicket.items?.find((item) => isChai(item.name))?.qty || 0);
-    const currentBunQty = Number(editingTicket.items?.find((item) => isBun(item.name))?.qty || 0);
-    const currentTiramisuQty = Number(editingTicket.items?.find((item) => isTiramisu(item.name))?.qty || 0);
-    const currentMilkBunQty = Number(editingTicket.items?.find((item) => isMilkBun(item.name))?.qty || 0);
-    
-    const chaiInv = Number(currentInventory.chai) || 0;
-    const bunInv = Number(currentInventory.bun) || 0;
-    const tiramisuInv = Number(currentInventory.tiramisu) || 0;
-    const milkBunInv = Number(currentInventory.milkBun) || 0;
-    
-    return {
-      chai: chaiInv + currentChaiQty,
-      bun: bunInv + currentBunQty,
-      tiramisu: tiramisuInv + currentTiramisuQty,
-      milkBun: milkBunInv + currentMilkBunQty,
-    };
-  }, [editingTicket, inventory]);
 
   const queueTicketsWaiting = useMemo(
     () =>
@@ -821,6 +730,24 @@ function AdminDashboard() {
         .sort((a, b) => (a.basePosition || 0) - (b.basePosition || 0)),
     [queueTickets]
   );
+
+  // Calculate available inventory for edit modal (current inventory + items in the order being edited)
+  const editAvailability = useMemo(() => {
+    if (!editingTicket) {
+      return { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
+    }
+    const currentChaiQty = Number(editingTicket.items?.find((item) => isChai(item.name))?.qty || 0);
+    const currentBunQty = Number(editingTicket.items?.find((item) => isBun(item.name))?.qty || 0);
+    const currentTiramisuQty = Number(editingTicket.items?.find((item) => isTiramisu(item.name))?.qty || 0);
+    const currentMilkBunQty = Number(editingTicket.items?.find((item) => isMilkBun(item.name))?.qty || 0);
+    
+    return {
+      chai: (inventory?.chai || 0) + currentChaiQty,
+      bun: (inventory?.bun || 0) + currentBunQty,
+      tiramisu: (inventory?.tiramisu || 0) + currentTiramisuQty,
+      milkBun: (inventory?.milkBun || 0) + currentMilkBunQty,
+    };
+  }, [inventory, editingTicket]);
 
   const readyTickets = useMemo(
     () =>
@@ -961,34 +888,6 @@ function AdminDashboard() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    {!inventoryLoaded ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : (
-                      <>
-                        <Badge 
-                          variant={(inventory?.chai ?? 0) <= 0 ? "destructive" : (inventory?.chai ?? 0) < (buffer.chai ?? 10) ? "default" : "secondary"}
-                        >
-                          Chai: {inventory?.chai ?? 0}
-                        </Badge>
-                        <Badge 
-                          variant={(inventory?.bun ?? 0) <= 0 ? "destructive" : (inventory?.bun ?? 0) < (buffer.bun ?? 10) ? "default" : "secondary"}
-                        >
-                          Bun: {inventory?.bun ?? 0}
-                        </Badge>
-                        <Badge 
-                          variant={(inventory?.tiramisu ?? 0) <= 0 ? "destructive" : (inventory?.tiramisu ?? 0) < (buffer.tiramisu ?? 10) ? "default" : "secondary"}
-                        >
-                          Tiramisu: {inventory?.tiramisu ?? 0}
-                        </Badge>
-                        <Badge 
-                          variant={(inventory?.milkBun ?? 0) <= 0 ? "destructive" : (inventory?.milkBun ?? 0) < (buffer.milkBun ?? 10) ? "default" : "secondary"}
-                        >
-                          Milk Bun: {inventory?.milkBun ?? 0}
-                        </Badge>
-                      </>
-                    )}
-                  </div>
                   <Badge variant="secondary">
                     {queueTicketsWaiting.length} waiting
                   </Badge>
@@ -1932,6 +1831,33 @@ function AdminDashboard() {
                       placeholder="We pour chai daily between 6am – 11pm."
                     />
                   </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="christmasTheme" className="text-base font-medium">
+                          🎄 Christmas Theme
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Enable festive holiday UI for the queue page
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={christmasTheme}
+                        onClick={() => setChristmasTheme(!christmasTheme)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+                          christmasTheme ? 'bg-green-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            christmasTheme ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
                   <div className="md:col-span-2">
                     <Button type="submit" disabled={settingsSaving}>
                       {settingsSaving ? "Saving..." : "Save service settings"}
@@ -1941,186 +1867,7 @@ function AdminDashboard() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Inventory Management</CardTitle>
-                <CardDescription>
-                  Set inventory levels and buffer thresholds for each item.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={saveInventory} className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="chaiInventory">Special Chai Inventory</Label>
-                      <Input
-                        id="chaiInventory"
-                        type="number"
-                        min={0}
-                        value={inventory?.chai ?? 0}
-                        onChange={(e) => setInventory((prev) => ({ ...(prev || { chai: 0, bun: 0, tiramisu: 0 }), chai: Number(e.target.value) || 0 }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="chaiBuffer">Special Chai Buffer</Label>
-                      <Input
-                        id="chaiBuffer"
-                        type="number"
-                        min={0}
-                        value={buffer.chai ?? 10}
-                        onChange={(e) => setBuffer((prev) => ({ ...prev, chai: Number(e.target.value) || 0 }))}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Warning will show when inventory falls below this level
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="bunInventory">Bun Maska Inventory</Label>
-                      <Input
-                        id="bunInventory"
-                        type="number"
-                        min={0}
-                        value={inventory?.bun ?? 0}
-                        onChange={(e) => setInventory((prev) => ({ ...(prev || { chai: 0, bun: 0, tiramisu: 0 }), bun: Number(e.target.value) || 0 }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bunBuffer">Bun Maska Buffer</Label>
-                      <Input
-                        id="bunBuffer"
-                        type="number"
-                        min={0}
-                        value={buffer.bun ?? 10}
-                        onChange={(e) => setBuffer((prev) => ({ ...prev, bun: Number(e.target.value) || 0 }))}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Warning will show when inventory falls below this level
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="tiramisuInventory">Tiramisu Inventory</Label>
-                      <Input
-                        id="tiramisuInventory"
-                        type="number"
-                        min={0}
-                        value={inventory?.tiramisu ?? 0}
-                        onChange={(e) => setInventory((prev) => ({ ...(prev || { chai: 0, bun: 0, tiramisu: 0 }), tiramisu: Number(e.target.value) || 0 }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tiramisuBuffer">Tiramisu Buffer</Label>
-                      <Input
-                        id="tiramisuBuffer"
-                        type="number"
-                        min={0}
-                        value={buffer.tiramisu ?? 10}
-                        onChange={(e) => setBuffer((prev) => ({ ...prev, tiramisu: Number(e.target.value) || 0 }))}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Warning will show when inventory falls below this level
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="milkBunInventory">Milk Bun Inventory</Label>
-                      <Input
-                        id="milkBunInventory"
-                        type="number"
-                        min={0}
-                        value={inventory?.milkBun ?? 0}
-                        onChange={(e) => setInventory((prev) => ({ ...(prev || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 }), milkBun: Number(e.target.value) || 0 }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="milkBunBuffer">Milk Bun Buffer</Label>
-                      <Input
-                        id="milkBunBuffer"
-                        type="number"
-                        min={0}
-                        value={buffer.milkBun ?? 10}
-                        onChange={(e) => setBuffer((prev) => ({ ...prev, milkBun: Number(e.target.value) || 0 }))}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Warning will show when inventory falls below this level
-                      </p>
-                    </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <Button type="submit" disabled={inventorySaving}>
-                      {inventorySaving ? "Saving..." : "Save inventory settings"}
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Pricing</CardTitle>
-                <CardDescription>
-                  Set the prices for Special Chai, Bun Maska, Tiramisu, and Milk Bun.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form
-                  onSubmit={savePricing}
-                  className="space-y-4"
-                >
-                  <div className="grid gap-4 md:grid-cols-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="chaiPrice">Special Chai price</Label>
-                      <Input
-                        id="chaiPrice"
-                        type="number"
-                        min={0}
-                        value={chaiPrice}
-                        onChange={(e) => setChaiPrice(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bunPrice">Bun Maska price</Label>
-                      <Input
-                        id="bunPrice"
-                        type="number"
-                        min={0}
-                        value={bunPrice}
-                        onChange={(e) => setBunPrice(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tiramisuPrice">Tiramisu price</Label>
-                      <Input
-                        id="tiramisuPrice"
-                        type="number"
-                        min={0}
-                        value={tiramisuPrice}
-                        onChange={(e) => setTiramisuPrice(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="milkBunPrice">Milk Bun price</Label>
-                      <Input
-                        id="milkBunPrice"
-                        type="number"
-                        min={0}
-                        value={milkBunPrice}
-                        onChange={(e) => setMilkBunPrice(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Button type="submit" disabled={pricingSaving}>
-                      {pricingSaving ? "Saving..." : "Save prices"}
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
+            <ProductManagement />
           </TabsContent>
         </Tabs>
 
