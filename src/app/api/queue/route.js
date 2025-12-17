@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, getTodayKey, firestoreHelpers } from "@/lib/firebase";
-import { isChai, isBun, isTiramisu, isMilkBun } from "@/lib/item-names";
+import { isChai, isBun, isTiramisu, isMilkBun, isHotChocolate } from "@/lib/item-names";
 import { logFirestoreRead, logFirestoreWrite, logFirestoreDelete } from "@/lib/firebase-monitor";
 
 const {
@@ -63,6 +63,7 @@ export async function DELETE() {
     let totalBunRestore = 0;
     let totalTiramisuRestore = 0;
     let totalMilkBunRestore = 0;
+    let totalHotChocolateRestore = 0;
     const ticketRefsToDelete = [];
 
     snapshot.forEach((docSnap) => {
@@ -81,6 +82,8 @@ export async function DELETE() {
             totalTiramisuRestore += qty;
           } else if (isMilkBun(item.name)) {
             totalMilkBunRestore += qty;
+          } else if (isHotChocolate(item.name)) {
+            totalHotChocolateRestore += qty;
           }
         });
       }
@@ -100,7 +103,7 @@ export async function DELETE() {
         }
 
         const currentSettings = settingsSnap.data();
-        const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
+        const currentInventory = currentSettings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0, hotChocolate: 0 };
 
         // Delete all tickets
         ticketRefsToDelete.forEach(ref => tx.delete(ref));
@@ -112,6 +115,7 @@ export async function DELETE() {
           "inventory.bun": (currentInventory.bun || 0) + totalBunRestore,
           "inventory.tiramisu": (currentInventory.tiramisu || 0) + totalTiramisuRestore,
           "inventory.milkBun": (currentInventory.milkBun || 0) + totalMilkBunRestore,
+          "inventory.hotChocolate": (currentInventory.hotChocolate || 0) + totalHotChocolateRestore,
           updatedAt: serverTimestamp(),
         });
         logFirestoreWrite(1, { endpoint: '/api/queue', document: 'settings', method: 'DELETE' });
@@ -126,7 +130,8 @@ export async function DELETE() {
         chai: totalChaiRestore,
         bun: totalBunRestore,
         tiramisu: totalTiramisuRestore,
-        milkBun: totalMilkBunRestore
+        milkBun: totalMilkBunRestore,
+        hotChocolate: totalHotChocolateRestore
       }
     }, { status: 200 });
   } catch (err) {

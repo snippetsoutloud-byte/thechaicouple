@@ -7,7 +7,7 @@ import { LogOut, RotateCw } from "lucide-react";
 
 import { getTodayKey } from "@/lib/firebase";
 import { getCachedPricing, setCachedPricing } from "@/lib/pricing-cache";
-import { isChai, isTiramisu, isBun, isMilkBun } from "@/lib/item-names";
+import { isChai, isTiramisu, isBun, isMilkBun, isHotChocolate } from "@/lib/item-names";
 import {
   Card,
   CardContent,
@@ -41,7 +41,7 @@ export default function StatusPage() {
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 });
+  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0, hotChocolatePrice: 0 });
   const [streamSettings, setStreamSettings] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("connecting"); // "connected", "disconnected", "error", "connecting"
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
@@ -234,6 +234,7 @@ export default function StatusPage() {
           bunPrice: Number(data.bunPrice) || 0,
           tiramisuPrice: Number(data.tiramisuPrice) || 0,
           milkBunPrice: Number(data.milkBunPrice) || 0,
+          hotChocolatePrice: Number(data.hotChocolatePrice) || 0,
         };
         if (!ignore) {
           setPricing(next);
@@ -261,6 +262,8 @@ export default function StatusPage() {
           price = pricing.tiramisuPrice;
         } else if (isMilkBun(item.name)) {
           price = pricing.milkBunPrice;
+        } else if (isHotChocolate(item.name)) {
+          price = pricing.hotChocolatePrice;
         }
         const subtotal = (price || 0) * item.qty;
         return { name: item.name, qty: item.qty, price, subtotal };

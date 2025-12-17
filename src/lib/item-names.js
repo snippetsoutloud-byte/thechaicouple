@@ -4,6 +4,7 @@ export const ITEM_NAMES = {
   BUN: "Bun Maska",
   TIRAMISU: "Tiramisu",
   MILK_BUN: "Milk Bun",
+  HOT_CHOCOLATE: "Hot Chocolate",
   // Legacy support for old data
   CHAI_LEGACY: "Irani Chai",
   BUN_LEGACY: "Bun",
@@ -34,5 +35,10 @@ export function isMilkBun(itemName = "") {
     itemName === ITEM_NAMES.MILK_BUN ||
     itemName === ITEM_NAMES.MILK_BUN_LEGACY
   );
+}
+
+// Helper function to check if an item is hot chocolate
+export function isHotChocolate(itemName = "") {
+  return itemName === ITEM_NAMES.HOT_CHOCOLATE;
 }
 

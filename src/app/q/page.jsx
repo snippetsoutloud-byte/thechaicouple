@@ -26,6 +26,7 @@ const MENU = [
   { key: "bun", label: "Bun Maska" },
   { key: "tiramisu", label: "Tiramisu" },
   { key: "milkBun", label: "Milk Bun" },
+  { key: "hotChocolate", label: "Hot Chocolate" },
 ];
 
 const currency = new Intl.NumberFormat("en-IN", {
@@ -37,8 +38,8 @@ const currency = new Intl.NumberFormat("en-IN", {
 export default function QueuePage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [quantities, setQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0 });
-  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 });
+  const [quantities, setQuantities] = useState({ chai: 0, bun: 0, tiramisu: 0, milkBun: 0, hotChocolate: 0 });
+  const [pricing, setPricing] = useState({ chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0, hotChocolatePrice: 0 });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [settings, setSettings] = useState(null);
@@ -84,6 +85,7 @@ export default function QueuePage() {
           bunPrice: Number(data.bunPrice) || 0,
           tiramisuPrice: Number(data.tiramisuPrice) || 0,
           milkBunPrice: Number(data.milkBunPrice) || 0,
+          hotChocolatePrice: Number(data.hotChocolatePrice) || 0,
         };
         if (!ignore) {
           setPricing(next);
@@ -115,12 +117,13 @@ export default function QueuePage() {
           
           // Auto-adjust quantities if inventory drops below selected quantities
           setQuantities((prev) => {
-            const newInventory = payload.settings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
+            const newInventory = payload.settings.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0, hotChocolate: 0 };
             return {
               chai: Math.min(prev.chai || 0, newInventory.chai || 0),
               bun: Math.min(prev.bun || 0, newInventory.bun || 0),
               tiramisu: Math.min(prev.tiramisu || 0, newInventory.tiramisu || 0),
               milkBun: Math.min(prev.milkBun || 0, newInventory.milkBun || 0),
+              hotChocolate: Math.min(prev.hotChocolate || 0, newInventory.hotChocolate || 0),
             };
           });
         }
@@ -151,7 +154,7 @@ export default function QueuePage() {
         name: item.label,
         key: item.key,
         qty: quantities[item.key] || 0,
-        price: item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : item.key === "tiramisu" ? pricing.tiramisuPrice : pricing.milkBunPrice,
+        price: item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : item.key === "tiramisu" ? pricing.tiramisuPrice : item.key === "milkBun" ? pricing.milkBunPrice : pricing.hotChocolatePrice,
       })).filter((item) => item.qty > 0),
     [quantities, pricing]
   );
@@ -180,15 +183,16 @@ export default function QueuePage() {
   }, [settings]);
 
   // Calculate availability from inventory (inventory > 0 means available)
-  const inventory = settings?.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0 };
-  const buffer = settings?.buffer || { chai: 10, bun: 10, tiramisu: 10, milkBun: 10 };
+  const inventory = settings?.inventory || { chai: 0, bun: 0, tiramisu: 0, milkBun: 0, hotChocolate: 0 };
+  const buffer = settings?.buffer || { chai: 10, bun: 10, tiramisu: 10, milkBun: 10, hotChocolate: 10 };
   const availability = {
     chai: (inventory.chai || 0) > 0,
     bun: (inventory.bun || 0) > 0,
     tiramisu: (inventory.tiramisu || 0) > 0,
     milkBun: (inventory.milkBun || 0) > 0,
+    hotChocolate: (inventory.hotChocolate || 0) > 0,
   };
-  const hasAnyAvailable = availability.chai || availability.bun || availability.tiramisu || availability.milkBun;
+  const hasAnyAvailable = availability.chai || availability.bun || availability.tiramisu || availability.milkBun || availability.hotChocolate;
   const queueOpen = isWithinServiceWindow && hasAnyAvailable;
 
   const canSubmit =
@@ -310,7 +314,7 @@ export default function QueuePage() {
               <div className="space-y-3">
                 {MENU.map((item) => {
                   const price =
-                    item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : item.key === "tiramisu" ? pricing.tiramisuPrice : pricing.milkBunPrice;
+                    item.key === "chai" ? pricing.chaiPrice : item.key === "bun" ? pricing.bunPrice : item.key === "tiramisu" ? pricing.tiramisuPrice : item.key === "milkBun" ? pricing.milkBunPrice : pricing.hotChocolatePrice;
                   const qty = quantities[item.key] || 0;
                   const available = availability[item.key] ?? false;
                   // Only calculate inventory when settings are loaded
@@ -320,6 +324,11 @@ export default function QueuePage() {
                   const settingsLoaded = settings !== null && !settingsLoading;
                   const isLowStock = settingsLoaded && itemInventory !== null && itemInventory > 0 && itemInventory < itemBuffer;
                   const isOutOfStock = settingsLoaded && itemInventory !== null && itemInventory <= 0;
+                  
+                  // Hide items that are out of stock when settings are loaded
+                  if (settingsLoaded && isOutOfStock) {
+                    return null;
+                  }
                   
                   return (
                     <div

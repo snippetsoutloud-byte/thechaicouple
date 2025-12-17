@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, firestoreHelpers } from "@/lib/firebase";
-import { isChai, isTiramisu, isMilkBun } from "@/lib/item-names";
+import { isChai, isTiramisu, isMilkBun, isHotChocolate } from "@/lib/item-names";
 import { logFirestoreRead, logFirestoreWrite } from "@/lib/firebase-monitor";
 
 const { doc, collection, getDoc, setDoc, serverTimestamp } = firestoreHelpers;
@@ -43,12 +43,13 @@ export async function PATCH(request) {
     logFirestoreRead(1, { endpoint: "/api/ready", document: "pricing", method: "PATCH" });
     const pricingData = pricingSnap.exists()
       ? pricingSnap.data()
-      : { chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0 };
+      : { chaiPrice: 0, bunPrice: 0, tiramisuPrice: 0, milkBunPrice: 0, hotChocolatePrice: 0 };
 
     const chaiPrice = Number(pricingData.chaiPrice) || 0;
     const bunPrice = Number(pricingData.bunPrice) || 0;
     const tiramisuPrice = Number(pricingData.tiramisuPrice) || 0;
     const milkBunPrice = Number(pricingData.milkBunPrice) || 0;
+    const hotChocolatePrice = Number(pricingData.hotChocolatePrice) || 0;
 
     const total = originalItems.reduce((sum, item) => {
       const qty = Number(item.qty) || 0;
@@ -60,6 +61,8 @@ export async function PATCH(request) {
         unitPrice = tiramisuPrice;
       } else if (isMilkBun(item.name)) {
         unitPrice = milkBunPrice;
+      } else if (isHotChocolate(item.name)) {
+        unitPrice = hotChocolatePrice;
       }
 
       return sum + unitPrice * qty;
